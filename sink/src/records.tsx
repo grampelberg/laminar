@@ -151,6 +151,14 @@ export const RecordsTable = () => {
     }
   }
 
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) {
+      return
+    }
+    handleScroll(element)
+  }, [hasMore, isLoading, rows.length])
+
   return (
     <div
       ref={containerRef}

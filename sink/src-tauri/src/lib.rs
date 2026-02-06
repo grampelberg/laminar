@@ -97,9 +97,14 @@ pub fn run() {
             let (layer_config, reader_config) =
                 load_config(app.handle().path().app_config_dir()?)?;
             let key = reader_config.key.load()?;
-            let enable = layer_config.remote == Some(key.public());
 
-            setup_logging(layer_config, enable);
+            let enable = layer_config.remote != Some(key.public());
+
+            tracing::info!(
+                "key: {:?} remote: {:?}",
+                key.public(),
+                layer_config.remote
+            );
 
             app.manage(AppData {
                 address: key.public(),
