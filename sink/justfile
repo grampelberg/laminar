@@ -1,0 +1,8 @@
+db-tooling: tmp
+    cargo sqlx database create
+    cargo sqlx migrate run --source src-tauri/migrations
+    bunx kysely-codegen --url "${DATABASE_URL#sqlite://}" \
+        --out-file src/db.d.ts
+
+tmp:
+    mkdir -p tmp

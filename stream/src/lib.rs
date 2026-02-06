@@ -1,0 +1,416 @@
+//! An inspector for tracing events.
+mod api;
+pub mod config;
+mod reader;
+pub mod sink;
+
+use std::{collections::HashMap, fmt};
+
+use eyre::Result;
+use iroh::{Endpoint, EndpointAddr, address_lookup::MdnsAddressLookup};
+pub use reader::Reader;
+use tokio::sync::mpsc::{self, Receiver, Sender};
+use tracing::{Instrument, Subscriber, field::Visit};
+use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
+
+use crate::config::LayerConfig;
+pub use crate::{api::*, config::Config};
+
+const DROP_TARGET: &str = "inspector::drop";
+
+pub struct Writer {
+    rx: Receiver<Record>,
+    remote: Option<EndpointAddr>,
+}
+
+// TODO:
+// - Is there some way to defer close until the buffer has been flushed?
+// - Maybe this can be a raw function instead of a struct? Definitely not doing
+//   much.
+impl Writer {
+    // The `inspector::drop` target is important. That's used for filtering so
+    // that event/span recursion doesn't happen. Anything child that has a
+    // parent including that target will end up being dropped by the layer
+    // automatically.
+    #[tracing::instrument(
+        name = "Writer::run",
+        target = DROP_TARGET,
+        skip_all
+    )]
+    pub async fn run(mut self) -> Result<()> {
+        assert!(
+            tracing::Span::current()
+                .metadata()
+                .map(|m| m.target() == DROP_TARGET)
+                .unwrap_or(false),
+            "must be run within a span that has the drop target. Is there a \
+             subscriber registered?"
+        );
+
+        let Some(addr) = self.remote else {
+            tracing::warn!("disabling writer, no address configured");
+            return Ok(());
+        };
+
+        let endpoint = Endpoint::builder()
+            .address_lookup(MdnsAddressLookup::builder())
+            .bind()
+            .in_current_span()
+            .await?;
+
+        let emitter = sink::Client::builder()
+            .endpoint(endpoint)
+            .address(addr)
+            .identity(Process::default())
+            .build()
+            .spawn::<Record>()
+            .await?;
+
+        tokio::spawn(
+            async move {
+                while let Some(msg) = self.rx.recv().await {
+                    emitter
+                        .send(msg)
+                        .inspect_err(|e| {
+                            tracing::error!(err = ?e, "failed to push to queue");
+                        })
+                        .ok();
+                }
+            }
+            .in_current_span(),
+        );
+
+        Ok(())
+    }
+}
+
+struct DropCallsite;
+
+pub struct InspectorLayerBuilder {
+    config: Option<LayerConfig>,
+}
+
+impl InspectorLayerBuilder {
+    pub fn config(mut self, cfg: LayerConfig) -> Self {
+        self.config = Some(cfg);
+        self
+    }
+
+    pub fn maybe_config(mut self, cfg: Option<LayerConfig>) -> Self {
+        self.config = cfg;
+        self
+    }
+
+    pub fn build(self) -> Result<(InspectorLayer, Writer)> {
+        let config = match self.config {
+            Some(cfg) => cfg,
+            None => Config::load()?.layer(),
+        };
+
+        let (tx, rx) = mpsc::channel(InspectorLayer::BUFFER_CAPACITY);
+
+        Ok((
+            InspectorLayer {
+                tx,
+                disabled: config.remote.is_none(),
+            },
+            Writer {
+                rx,
+                remote: config.remote.map(Into::into),
+            },
+        ))
+    }
+}
+
+// TODO: I want this to work in WASM environments. The network stack is going to
+// need to be pluggable and most of tokio won't be usable.
+pub struct InspectorLayer {
+    disabled: bool,
+    tx: Sender<Record>,
+}
+
+impl InspectorLayer {
+    const BUFFER_CAPACITY: usize = 1000;
+
+    pub fn new() -> Result<(Self, Writer)> {
+        Ok(Self::builder().build()?)
+    }
+
+    pub fn builder() -> InspectorLayerBuilder {
+        InspectorLayerBuilder { config: None }
+    }
+
+    fn send(&self, record: Record) {
+        if self.disabled {
+            return;
+        }
+
+        let Ok(permit) = self.tx.try_reserve() else {
+            eprintln!("Failed to reserve buffer space for inspector record");
+            return;
+        };
+
+        permit.send(record);
+    }
+
+    pub fn disabled(&self) -> bool {
+        self.disabled
+    }
+}
+
+// It is important that spans/events generated as part of the inspector layer
+// itself are dropped. They multiply exponentially otherwise. To do the
+// dropping, we:
+//
+// - Look for a span that has target `inspector::drop`.
+// - Add an extension `DropCallsite` to the span.
+// - Look for a parent span that has the `DropCallsite` extension.
+//
+// In either case, we drop the span. For events, we look for the parent span and
+// drop it.
+//
+// Note that this is not 100% effective.
+//
+// - Spans do not cross async boundaries by default. The best practice is to use
+//   `instrument` or `in_current_span`. Unfortunately, because this is up to the
+//   library author, it doesn't always happen.
+// - Some library authors explicitly remove the parent span entirely (iroh's
+//   `RemoteStateActor`) for example.
+// - The tokio runtime starts up outside of the inspector layer itself and is
+//   shared.
+// - Some events have the span explicitly removed.
+impl<S> Layer<S> for InspectorLayer
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    fn on_new_span(
+        &self,
+        attrs: &tracing::span::Attributes<'_>,
+        id: &tracing::span::Id,
+        ctx: Context<'_, S>,
+    ) {
+        if self.disabled {
+            return;
+        }
+
+        let span = ctx.span(id).expect("span exists");
+        let will_drop = span
+            .parent()
+            .map(|p| p.extensions().get::<DropCallsite>().is_some())
+            .unwrap_or(false);
+
+        if attrs.metadata().target() == DROP_TARGET || will_drop {
+            span.extensions_mut().insert(DropCallsite);
+            metrics::counter!("layer.drop.span").increment(1);
+
+            return;
+        }
+
+        // I'm spot checking that the networking spans are *mostly* being
+        // dropped in the tests. To keep from having a cardinality explosion, we
+        // only do this for running tests.
+        #[cfg(test)]
+        metrics::counter!("layer.span", "target" => attrs.metadata().target())
+            .increment(1);
+        metrics::counter!("layer.span").increment(1);
+
+        let record = Record::builder()
+            .span_id(id.into_u64())
+            .kind(Kind::Span)
+            .maybe_parent(attrs.parent().map(tracing::span::Id::into_u64))
+            .metadata(attrs.metadata())
+            .fields_visitor(|v| attrs.record(v))
+            .build();
+        self.send(record);
+    }
+
+    fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<'_, S>) {
+        if self.disabled {
+            return;
+        }
+
+        let will_drop = ctx
+            .lookup_current()
+            .map(|p| p.extensions().get::<DropCallsite>().is_some())
+            .unwrap_or(false);
+
+        if will_drop {
+            metrics::counter!("layer.drop.event").increment(1);
+
+            return;
+        }
+
+        metrics::counter!("layer.event").increment(1);
+
+        let record = Record::builder()
+            .kind(Kind::Event)
+            .maybe_parent(event.parent().map(|i| i.into_u64()))
+            .metadata(event.metadata())
+            .fields_visitor(|v| event.record(v))
+            .build();
+        self.send(record);
+    }
+}
+
+#[derive(Default)]
+struct FieldVisitor {
+    fields: HashMap<String, serde_json::Value>,
+}
+
+impl Visit for FieldVisitor {
+    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
+        let value = serde_json::Number::from_f64(value)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null);
+        self.fields.insert(field.name().to_string(), value);
+    }
+
+    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::Value::from(value));
+    }
+
+    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::Value::from(value));
+    }
+
+    fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::Value::from(value));
+    }
+
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::Value::from(value));
+    }
+
+    fn record_debug(
+        &mut self,
+        field: &tracing::field::Field,
+        value: &dyn fmt::Debug,
+    ) {
+        self.fields.insert(
+            field.name().to_string(),
+            serde_json::Value::String(format!("{value:?}")),
+        );
+    }
+
+    #[cfg(feature = "valuable")]
+    fn record_value(
+        &mut self,
+        field: &tracing::field::Field,
+        value: valuable::Value<'_>,
+    ) {
+        self.fields.insert(
+            field.name().to_string(),
+            serde_json::Value::String(format!("{value:?}")),
+        );
+    }
+
+    fn record_error(
+        &mut self,
+        field: &tracing::field::Field,
+        value: &(dyn std::error::Error + 'static),
+    ) {
+        self.fields.insert(
+            field.name().to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use iroh::SecretKey;
+    use metrics::Key;
+    use rand::rng;
+    use test_util::metrics::MemoryRecorder;
+    use tracing_subscriber::{filter::LevelFilter, prelude::*};
+
+    use super::*;
+
+    // TODO: need a multi-threaded test
+    #[tokio::test]
+    async fn test_logging() -> Result<()> {
+        color_eyre::install().ok();
+        let recorder = MemoryRecorder::new();
+        let _drop = metrics::set_default_local_recorder(&recorder);
+
+        eprintln!(
+            "logging output is disabled by default, if this fails, run with \
+             -F test_prety"
+        );
+
+        let keypair = SecretKey::generate(&mut rng());
+        tracing::info!("{}", keypair.public());
+
+        let (layer, writer) = InspectorLayer::builder()
+            .config(LayerConfig::builder().remote(keypair.public()).build())
+            .build()?;
+
+        #[cfg(feature = "test_pretty")]
+        let _drop_subscriber = {
+            let fmt = tracing_subscriber::fmt::layer().pretty();
+            tracing_subscriber::registry()
+                .with(fmt)
+                .with(LevelFilter::DEBUG)
+                .with(layer)
+                .set_default()
+        };
+
+        #[cfg(not(feature = "test_pretty"))]
+        let _drop_subscriber = tracing_subscriber::registry()
+            .with(LevelFilter::DEBUG)
+            .with(layer)
+            .set_default();
+
+        writer.run().await?;
+
+        // It is important that this happens *after* the subscriber has been
+        // registered. Otherwise, there's no "current" span and everything in
+        // the router isn't attached correctly (causing spans to go through that
+        // should have been dropped).
+        let _reader = Reader::builder().key(keypair.clone()).build().await?;
+
+        tracing::info!("testing...");
+
+        let dropped_spans =
+            recorder.get_counter(&Key::from_static_name("layer.drop.span"))?;
+        assert!(dropped_spans > 0, "No spans were dropped");
+        let spans =
+            recorder.get_counter(&Key::from_static_name("layer.span"))?;
+        assert!(spans > 0, "No spans were recorded");
+
+        let dropped_events =
+            recorder.get_counter(&Key::from_static_name("layer.drop.event"))?;
+        assert!(dropped_events > 0, "No events were dropped");
+        let events =
+            recorder.get_counter(&Key::from_static_name("layer.event"))?;
+        assert!(events > 0, "No events were recorded");
+
+        let counters = recorder.all_counters();
+        let targets = counters
+            .keys()
+            .filter(|k| k.name() == "layer.span")
+            .map(|k| {
+                k.labels()
+                    .filter(|l| l.key() == "target")
+                    .map(|l| l.value())
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert!(
+            targets
+                .iter()
+                .filter(|t| t.contains("iroh::socket")
+                    && !t.contains("remote_state"))
+                .count()
+                == 0,
+            "found iroh::socket, should be dropping more targets: {targets:?}"
+        );
+
+        Ok(())
+    }
+}
