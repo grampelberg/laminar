@@ -28,25 +28,7 @@ pub struct Writer {
 // - Maybe this can be a raw function instead of a struct? Definitely not doing
 //   much.
 impl Writer {
-    // The `inspector::drop` target is important. That's used for filtering so
-    // that event/span recursion doesn't happen. Anything child that has a
-    // parent including that target will end up being dropped by the layer
-    // automatically.
-    #[tracing::instrument(
-        name = "Writer::run",
-        target = DROP_TARGET,
-        skip_all
-    )]
     pub async fn run(mut self) -> Result<()> {
-        assert!(
-            tracing::Span::current()
-                .metadata()
-                .map(|m| m.target() == DROP_TARGET)
-                .unwrap_or(false),
-            "must be run within a span that has the drop target. Is there a \
-             subscriber registered?"
-        );
-
         let Some(addr) = self.remote else {
             tracing::warn!("disabling writer, no address configured");
             return Ok(());
@@ -66,6 +48,25 @@ impl Writer {
             .spawn::<Record>()
             .await?;
 
+        // The `inspector::drop` target is important. That's used for filtering
+        // so that event/span recursion doesn't happen. Anything child
+        // that has a parent including that target will end up being
+        // dropped by the layer automatically.
+        let span = tracing::error_span!(
+            target: DROP_TARGET,
+            parent: tracing::Span::current(),
+            "Writer::emitter"
+        );
+
+        if !tracing::dispatcher::get_default(|d| {
+            d.enabled(span.metadata().expect("just constructed"))
+        }) {
+            panic!(
+                "must be run within a span that has the drop target. Is there \
+                 a subscriber registered? Does it allow {DROP_TARGET}=error?"
+            )
+        }
+
         tokio::spawn(
             async move {
                 while let Some(msg) = self.rx.recv().await {
@@ -77,7 +78,7 @@ impl Writer {
                         .ok();
                 }
             }
-            .in_current_span(),
+            .instrument(span),
         );
 
         Ok(())
@@ -122,8 +123,11 @@ impl InspectorLayerBuilder {
     }
 }
 
-// TODO: I want this to work in WASM environments. The network stack is going to
-// need to be pluggable and most of tokio won't be usable.
+// Warning: if the writer and reader are in the same process, you must exempt
+// the reader by running it in a DROP_TARGET span.
+//
+// TODO: I want this to work in WASM environments. The network
+// stack is going to need to be pluggable and most of tokio won't be usable.
 pub struct InspectorLayer {
     disabled: bool,
     tx: Sender<Record>,
@@ -339,7 +343,7 @@ mod test {
 
         eprintln!(
             "logging output is disabled by default, if this fails, run with \
-             -F test_prety"
+             -F test_pretty"
         );
 
         let keypair = SecretKey::generate(&mut rng());
@@ -367,11 +371,20 @@ mod test {
 
         writer.run().await?;
 
+        let drop_span = tracing::error_span!(
+            target: DROP_TARGET,
+            "inspector::drop"
+        );
+
         // It is important that this happens *after* the subscriber has been
         // registered. Otherwise, there's no "current" span and everything in
         // the router isn't attached correctly (causing spans to go through that
         // should have been dropped).
-        let _reader = Reader::builder().key(keypair.clone()).build().await?;
+        let _reader = Reader::builder()
+            .key(keypair.clone())
+            .build()
+            .instrument(drop_span)
+            .await?;
 
         tracing::info!("testing...");
 

@@ -36,18 +36,7 @@ impl ReaderBuilder {
         self
     }
 
-    #[tracing::instrument(
-        name = "ReaderBuilder::build",
-        target = DROP_TARGET,
-        skip_all
-    )]
     pub async fn build(self) -> Result<Reader> {
-        assert!(
-            !tracing::Span::current().is_none(),
-            "must be called within a span *and* with a registered subscriber \
-             that can return the current span."
-        );
-
         let config = match self.config {
             Some(config) => config,
             None => Config::load()?.reader(),

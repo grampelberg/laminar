@@ -5,12 +5,13 @@ mod throttle;
 use std::path::PathBuf;
 
 use eyre::Result;
-use inspector::config::{KeySource, ReaderConfig};
+use inspector::config::{KeySource, LayerConfig, ReaderConfig};
 use iroh::EndpointId;
 use tauri::{Manager, WebviewWindow, Wry};
 use tracing_subscriber::{
     filter::{EnvFilter, LevelFilter},
     prelude::*,
+    reload::Layer,
 };
 
 use crate::stream::RecordStream;
@@ -28,21 +29,31 @@ fn enable_devtools(window: WebviewWindow<Wry>) {
     window.close_devtools();
 }
 
-fn setup_logging() {
+fn setup_logging(config: LayerConfig, enable: bool) -> Result<()> {
     color_eyre::install().expect("can install color-eyre");
 
-    let env_filter = EnvFilter::builder()
-        // TODO: this is a temporary fix for the reader panicing on startup when
-        // there's no log level configured. It has something to do with current
-        // span not being recorded on startup.
-        .with_default_directive(LevelFilter::INFO.into())
-        .from_env_lossy();
+    let env_filter = EnvFilter::builder().from_env_lossy();
     let fmt = tracing_subscriber::fmt::layer().pretty();
+    let (layer, writer) = inspector::InspectorLayer::builder()
+        .config(config)
+        .build()?;
 
     tracing_subscriber::registry()
         .with(env_filter)
         .with(fmt)
+        .with(enable.then(|| layer))
         .init();
+
+    if enable {
+        tauri::async_runtime::spawn(writer.run());
+    } else {
+        tracing::warn!(
+            "inspector layer disabled, source and destination addresses \
+             cannot be the same process."
+        )
+    }
+
+    Ok(())
 }
 
 fn db_url(data_path: PathBuf) -> Result<PathBuf> {
@@ -58,19 +69,19 @@ fn clean_app_data(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn load_config(config_path: PathBuf) -> Result<ReaderConfig> {
+fn load_config(config_path: PathBuf) -> Result<(LayerConfig, ReaderConfig)> {
     let fpath = config_path.join("config.toml");
 
-    let mut cfg =
-        inspector::Config::load_from_path(fpath.to_string_lossy())?.reader();
+    let (layer, mut reader) =
+        inspector::Config::load_from_path(fpath.to_string_lossy())?.split();
 
-    if matches!(cfg.key, KeySource::None) {
-        cfg.key = KeySource::File {
+    if matches!(reader.key, KeySource::None) {
+        reader.key = KeySource::File {
             path: config_path.join("reader.key").to_string_lossy().to_string(),
-        }
+        };
     }
 
-    Ok(cfg)
+    Ok((layer, reader))
 }
 
 struct AppData {
@@ -79,14 +90,16 @@ struct AppData {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    setup_logging();
-
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let config = load_config(app.handle().path().app_config_dir()?)?;
-            let key = config.key.load()?;
+            let (layer_config, reader_config) =
+                load_config(app.handle().path().app_config_dir()?)?;
+            let key = reader_config.key.load()?;
+            let enable = layer_config.remote == Some(key.public());
+
+            setup_logging(layer_config, enable);
 
             app.manage(AppData {
                 address: key.public(),
@@ -106,7 +119,7 @@ pub fn run() {
             let db_path = db_url(data_path)?;
 
             RecordStream::builder()
-                .config(config)
+                .config(reader_config)
                 .db_path(db_path)
                 .handle(app.handle().clone())
                 .key(key)

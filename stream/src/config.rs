@@ -81,6 +81,10 @@ impl Config {
     pub fn reader(&self) -> ReaderConfig {
         self.reader.clone()
     }
+
+    pub fn split(&self) -> (LayerConfig, ReaderConfig) {
+        (self.layer.clone(), self.reader.clone())
+    }
 }
 
 impl Provider for Config {
