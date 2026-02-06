@@ -8,7 +8,10 @@ use eyre::Result;
 use inspector::config::{KeySource, ReaderConfig};
 use iroh::EndpointId;
 use tauri::{Manager, WebviewWindow, Wry};
-use tracing_subscriber::{filter::EnvFilter, prelude::*};
+use tracing_subscriber::{
+    filter::{EnvFilter, LevelFilter},
+    prelude::*,
+};
 
 use crate::stream::RecordStream;
 
@@ -28,7 +31,12 @@ fn enable_devtools(window: WebviewWindow<Wry>) {
 fn setup_logging() {
     color_eyre::install().expect("can install color-eyre");
 
-    let env_filter = EnvFilter::builder().from_env_lossy();
+    let env_filter = EnvFilter::builder()
+        // TODO: this is a temporary fix for the reader panicing on startup when
+        // there's no log level configured. It has something to do with current
+        // span not being recorded on startup.
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
     let fmt = tracing_subscriber::fmt::layer().pretty();
 
     tracing_subscriber::registry()

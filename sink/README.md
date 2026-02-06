@@ -4,6 +4,7 @@
 
 ### Prerequisites
 
+- [git-lfs](https://git-lfs.com)
 - [Tauri](https://v2.tauri.app/start/prerequisites/) - Get all the prerequisites
   installed.
 
