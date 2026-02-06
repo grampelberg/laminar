@@ -1,18 +1,14 @@
 use std::{
-    io::ErrorKind,
-    path::PathBuf,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use eyre::{Result, eyre};
+use eyre::Result;
 use futures::Stream;
 use iroh::{
     Endpoint, PublicKey, SecretKey, address_lookup::MdnsAddressLookup,
     protocol::Router,
 };
-use rand::rng;
-use shellexpand::tilde;
 use tokio::sync::mpsc::Receiver;
 use tracing::Instrument;
 
@@ -40,30 +36,6 @@ impl ReaderBuilder {
         self
     }
 
-    async fn get_key(path: &str) -> Result<SecretKey> {
-        let key_path = PathBuf::from(tilde(&path).as_ref());
-
-        let secret_key = match tokio::fs::read(&key_path).await {
-            Ok(bytes) => {
-                SecretKey::try_from(bytes.as_slice()).map_err(|e| {
-                    eyre!("invalid secret key in {}: {e}", key_path.display())
-                })?
-            }
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                if let Some(parent) = key_path.parent() {
-                    tokio::fs::create_dir_all(parent).await?;
-                }
-
-                let secret_key = SecretKey::generate(&mut rng());
-                tokio::fs::write(&key_path, secret_key.to_bytes()).await?;
-                secret_key
-            }
-            Err(err) => return Err(err.into()),
-        };
-
-        Ok(secret_key)
-    }
-
     #[tracing::instrument(
         name = "ReaderBuilder::build",
         target = DROP_TARGET,
@@ -83,7 +55,7 @@ impl ReaderBuilder {
 
         let secret_key = match self.key {
             Some(key) => key,
-            None => ReaderBuilder::get_key(&config.key).await?,
+            None => config.key.load_async().await?,
         };
 
         let endpoint = Endpoint::builder()

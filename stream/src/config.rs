@@ -1,3 +1,5 @@
+mod keys;
+
 use eyre::Result;
 use figment::{
     Figment, Profile, Provider,
@@ -6,6 +8,8 @@ use figment::{
 };
 use iroh::PublicKey;
 use serde::{Deserialize, Serialize};
+
+pub use crate::config::keys::KeySource;
 
 #[derive(Debug, Deserialize, Serialize, Clone, bon::Builder)]
 pub struct LayerConfig {
@@ -23,19 +27,15 @@ impl Default for LayerConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ReaderConfig {
-    pub key: String,
+    pub key: KeySource,
 }
 
 impl Default for ReaderConfig {
     fn default() -> Self {
         Self {
-            key: ReaderConfig::KEY_PATH.to_string(),
+            key: KeySource::default(),
         }
     }
-}
-
-impl ReaderConfig {
-    const KEY_PATH: &'static str = "~/.config/inspector/reader.key";
 }
 
 #[derive(Default, Debug, Deserialize, Serialize)]
@@ -46,7 +46,7 @@ pub struct Config {
 }
 
 // TODO:
-// - Document how to set the sub-keys, eg FOO={key="asdf"}
+// - Document how to set the sub-keys, eg FOO={key={path="asdf"}}
 impl Config {
     const PATH_ENV: &'static str = "INSPECTOR_CONFIG";
     const PATH: &'static str = "~/.config/inspector/config.toml";

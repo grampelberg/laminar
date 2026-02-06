@@ -38,7 +38,8 @@ sqlx = { version = "0.8.6", features = [
   "sqlite",
   "sqlite-preupdate-hook",
 ] }
-bon = "3.8.2"
+bon = { version = "3.8.2", features = ["implied-bounds"] }
+iroh = "0.96.0"
 
 [features]
 clean = []

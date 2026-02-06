@@ -2864,6 +2864,7 @@ dependencies = [
  "eyre",
  "futures",
  "inspector",
+ "iroh",
  "serde",
  "serde_json",
  "sqlx",
