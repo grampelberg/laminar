@@ -1693,6 +1693,6 @@ export default {
     value: 0,
   },
   addressAtom: {
-    value: {},
+    value: 'mock address',
   },
 }

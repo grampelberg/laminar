@@ -57,7 +57,7 @@ bun run storybook
 When adding new shadcn components, you can also add stories for them with:
 
 ```bash
-bunx shadcn add @storybook/<component>-story
+VITE_MOCK=true bunx shadcn add @storybook/<component>-story
 ```
 
 See the [registry](https://registry.lloydrichards.dev) for what's available.
@@ -69,7 +69,7 @@ Everything in the playground directory is meant to be for internal use.
 To use the design playground, run:
 
 ```bash
-bun run dev
+VITE_MOCK=true bun run dev
 ```
 
 You can then reach it by visiting `/design`. Note that there will be javascript

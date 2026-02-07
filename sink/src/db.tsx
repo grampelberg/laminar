@@ -11,6 +11,7 @@ import {
   sql,
 } from 'kysely'
 
+import { useMock } from '@/mock'
 import type { DB, Records } from './types/db.ts'
 
 const queryBuilder = new Kysely<DB>({
@@ -118,7 +119,9 @@ const applyPage = (
   mode: RowsUpdateMode,
 ): RowsState => ({
   rows:
-    mode === 'replace' ? page.rows : dedupeRowsById([...state.rows, ...page.rows]),
+    mode === 'replace'
+      ? page.rows
+      : dedupeRowsById([...state.rows, ...page.rows]),
   hasMore: page.hasMore,
   isLoading: false,
   nextCursor: page.nextCursor,
@@ -146,15 +149,25 @@ const updateRowsState = async (
   set(rowsStateAtom, applyPage(state, page, mode))
 }
 
-export const refreshRowsAtom = atom(null, async (get, set) => {
-  if (!get(isNearTopAtom)) {
-    set(pendingNewRowsAtom, current => current + 1)
-    return
-  }
+export const refreshRowsAtom = atom(
+  null,
+  useMock
+    ? () => {}
+    : async (get, set) => {
+        if (!get(isNearTopAtom)) {
+          set(pendingNewRowsAtom, current => current + 1)
+          return
+        }
 
-  await updateRowsState(get, set, 'replace')
-})
+        await updateRowsState(get, set, 'replace')
+      },
+)
 
-export const loadMoreRowsAtom = atom(null, async (get, set) => {
-  await updateRowsState(get, set, 'append')
-})
+export const loadMoreRowsAtom = atom(
+  null,
+  useMock
+    ? () => {}
+    : async (get, set) => {
+        await updateRowsState(get, set, 'append')
+      },
+)

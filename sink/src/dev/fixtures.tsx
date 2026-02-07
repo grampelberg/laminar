@@ -88,10 +88,36 @@ const loadFixture = async (path: string): Promise<FixtureRecord> => {
   return parsedFixture.data
 }
 
+const resolveExportValue = async (value: unknown) => {
+  if (!(value instanceof Promise)) {
+    return { kind: 'value', value } as const
+  }
+
+  return await Promise.race([
+    value.then(
+      resolved => ({ kind: 'value', value: resolved }) as const,
+      error => ({ kind: 'rejected', error }) as const,
+    ),
+    new Promise<{ kind: 'pending' }>(resolve => {
+      setTimeout(() => resolve({ kind: 'pending' }), 0)
+    }),
+  ])
+}
+
+function defaultRead(get) {
+  return get(this)
+}
+
+function defaultWrite(get, set, arg) {
+  return set(this, typeof arg === 'function' ? arg(get(this)) : arg)
+}
+
 const nextSnapshot = (snapshot: AtomSnapshot, fixture: FixtureRecord) => {
   const appliedLabels = new Set<string>()
   const values = Array.from(snapshot.values).reduce((acc, [key, _]) => {
-    const mutable = key as WritableAtom<unknown, unknown[], unknown>
+    const mutable = key as WritableAtom<unknown, unknown[], unknown> & {
+      init?: unknown
+    }
 
     if (!key.debugLabel) {
       return acc
@@ -104,13 +130,18 @@ const nextSnapshot = (snapshot: AtomSnapshot, fixture: FixtureRecord) => {
     appliedLabels.add(key.debugLabel)
 
     if ('value' in entry) {
-      if ('init' in key) {
-        console.warn(
-          `Overriding derived atom values is currently unsupported: ${key.debugLabel}`,
-        )
+      mutable.init = entry.value
+      mutable.read = defaultRead
+
+      if ('write' in key) {
+        mutable.write = defaultWrite
       }
 
       acc.set(key, entry.value)
+    } else if ('init' in mutable) {
+      console.warn(
+        `you can't convert primitive atoms to computed ones: ${key.debugLabel}`,
+      )
     } else {
       mutable.read = entry.read
       if (entry.write) {
@@ -148,24 +179,39 @@ export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
   }
 
   const exportFixture = async () => {
-    const values = Array.from(snapshot.values).reduce(
-      (acc, [key, value]) => {
-        if (!key.debugLabel) {
-          return acc
-        }
+    const values: Record<string, { value: unknown }> = {}
+    const pendingLabels: string[] = []
 
-        acc[key.debugLabel] = { value }
-        return acc
-      },
-      {} as Record<string, { value: unknown }>,
-    )
+    for (const [key, value] of snapshot.values) {
+      if (!key.debugLabel) {
+        continue
+      }
+
+      const resolved = await resolveExportValue(value)
+      if (resolved.kind === 'value') {
+        values[key.debugLabel] = { value: resolved.value }
+        continue
+      }
+
+      if (resolved.kind === 'pending') {
+        pendingLabels.push(key.debugLabel)
+      } else {
+        console.warn(
+          `Skipping rejected atom while exporting fixture: ${key.debugLabel}`,
+          resolved.error,
+        )
+      }
+    }
 
     const output = `export default ${JSON.stringify(values, null, 2)}\n`
 
     await navigator.clipboard.writeText(output)
-    toast.success('Fixture copied to clipboard', {
-      description: 'Fixture source copied to clipboard',
-    })
+    toast.success('Fixture copied to clipboard')
+    if (pendingLabels.length > 0) {
+      toast.warning(
+        `Skipped pending atoms while exporting: ${pendingLabels.join(', ')}`,
+      )
+    }
   }
 
   const applyFixture = async (path: string) => {
@@ -197,8 +243,23 @@ export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
       toast.warning(`Unknown fixture atoms: ${unknownAtoms.join(', ')}`)
     }
 
-    setSnapshot(next)
-    setCurrent(path)
+    // When converting a computed atom to a primitive one *at the same time* as
+    // its dependent, these set* functions will throw that there's an
+    // invalidated atom. For now, we're ignoring that error as it doesn't seem
+    // to have any other implications.
+    try {
+      setSnapshot(next)
+      setCurrent(path)
+    } catch (error) {
+      if (
+        !(
+          error instanceof Error &&
+          error.message.includes('[Bug] invalidated atom exists')
+        )
+      ) {
+        throw error
+      }
+    }
     const name = fixtureNameFromPath(path)
     toast.success(`Applied fixture: ${name}`)
   }
