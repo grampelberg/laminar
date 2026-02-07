@@ -41,7 +41,7 @@ export interface Records {
   span_id: number | null;
   target: string;
   ts_ms: number;
-  writer_id: Buffer;
+  writer_id: string;
 }
 
 export interface DB {

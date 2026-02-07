@@ -1,23 +1,63 @@
-import { atom, useAtom, useAtomValue } from 'jotai'
+import { type Getter, type Setter, useAtom, type WritableAtom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import { useAtomsSnapshot, useGotoAtomsSnapshot } from 'jotai-devtools'
-import { useEffect } from 'react'
+import { CheckIcon, CircleIcon, CircleOffIcon, CopyIcon } from 'lucide-react'
+import { toast } from 'sonner'
+import { z } from 'zod'
 
-import { Label } from '@/components/ui/label.tsx'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select.tsx'
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+} from '@/components/ui/command.tsx'
+
+interface FixtureValueEntry {
+  value: unknown
+}
+type FixtureRead = (get: Getter) => unknown
+type FixtureWrite = (get: Getter, set: Setter, ...args: unknown[]) => unknown
+interface FixtureComputedEntry {
+  read: FixtureRead
+  write?: FixtureWrite
+}
+type FixtureRecord = Record<string, FixtureValueEntry | FixtureComputedEntry>
 
 interface Fixture {
-  default: Record<string, unknown>
+  default: FixtureRecord
 }
 
-const fixtures = import.meta.glob<Fixture>('^/fixtures/*.ts')
-const fixturePaths = Object.keys(fixtures).sort()
+const fixtureValueEntrySchema = z
+  .object({
+    value: z.unknown(),
+  })
+  .strict()
+  .transform(value => value as FixtureValueEntry)
+
+const fixtureComputedEntrySchema = z
+  .object({
+    read: z.custom<FixtureRead>(value => typeof value === 'function'),
+    write: z
+      .custom<FixtureWrite>(value => typeof value === 'function')
+      .optional(),
+  })
+  .strict()
+  .transform(value => value as FixtureComputedEntry)
+
+const fixtureEntrySchema = z.union([
+  fixtureValueEntrySchema,
+  fixtureComputedEntrySchema,
+])
+
+const fixtureSchema = z.record(z.string(), fixtureEntrySchema)
+
+const fixtures = import.meta.glob<Fixture>('^/fixtures/**/*.ts')
+const fixturePaths = Object.keys(fixtures)
+
+const fixtureNameFromPath = (path: string) => {
+  const parts = path.split('fixtures/')
+  const last = parts[parts.length - 1]
+  return last ? last.replace(/\.ts$/, '') : path
+}
 
 const selectedFixtureAtom = atomWithStorage<string | null>(
   'selectedFixture',
@@ -25,66 +65,194 @@ const selectedFixtureAtom = atomWithStorage<string | null>(
 )
 selectedFixtureAtom.debugPrivate = true
 
-const fixtureAtom = atom(async get => {
-  const path = get(selectedFixtureAtom)
-  const load = path ? fixtures[path] : undefined
-  return (await load?.())?.default ?? null
-})
-fixtureAtom.debugPrivate = true
+type AtomSnapshot = ReturnType<typeof useAtomsSnapshot>
+class FixtureNotFoundError extends Error {}
+class FixtureParseError extends Error {
+  constructor(public readonly zodError: z.ZodError) {
+    super('Fixture parse failed')
+  }
+}
 
-export const FixturePanel = () => {
+const loadFixture = async (path: string): Promise<FixtureRecord> => {
+  const load = fixtures[path]
+  const fixture = (await load?.())?.default ?? null
+  if (!fixture) {
+    throw new FixtureNotFoundError('Fixture not found')
+  }
+
+  const parsedFixture = fixtureSchema.safeParse(fixture)
+  if (!parsedFixture.success) {
+    throw new FixtureParseError(parsedFixture.error)
+  }
+
+  return parsedFixture.data
+}
+
+const nextSnapshot = (snapshot: AtomSnapshot, fixture: FixtureRecord) => {
+  const appliedLabels = new Set<string>()
+  const values = Array.from(snapshot.values).reduce((acc, [key, _]) => {
+    const mutable = key as WritableAtom<unknown, unknown[], unknown>
+
+    if (!key.debugLabel) {
+      return acc
+    }
+
+    const entry = fixture[key.debugLabel]
+    if (!entry) {
+      return acc
+    }
+    appliedLabels.add(key.debugLabel)
+
+    if ('value' in entry) {
+      if ('init' in key) {
+        console.warn(
+          `Overriding derived atom values is currently unsupported: ${key.debugLabel}`,
+        )
+      }
+
+      acc.set(key, entry.value)
+    } else {
+      mutable.read = entry.read
+      if (entry.write) {
+        mutable.write = entry.write
+      }
+    }
+
+    return acc
+  }, new Map(snapshot.values))
+
+  const unknownAtoms = Object.keys(fixture).filter(
+    label => !appliedLabels.has(label),
+  )
+
+  return {
+    next: {
+      values,
+      dependents: new Map(snapshot.dependents),
+    },
+    unknownAtoms,
+  }
+}
+
+export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
   const [current, setCurrent] = useAtom(selectedFixtureAtom)
-  const fixture = useAtomValue(fixtureAtom)
+  const selectedName = current ? fixtureNameFromPath(current) : null
 
   const snapshot = useAtomsSnapshot()
   const setSnapshot = useGotoAtomsSnapshot()
 
-  useEffect(() => {
-    if (snapshot.values.size === 0 || !fixture) {
-      return
-    }
+  const disableFixtureOverrides = () => {
+    setCurrent(null)
+    toast.success('Fixture overrides disabled')
+    onDone?.()
+  }
 
-    const toAtom = Array.from(snapshot.values).reduce((acc, [key, _]) => {
-      acc.set(key.debugLabel, key)
-      return acc
-    }, new Map())
-
-    const next = {
-      values: Object.entries(fixture).reduce((acc, [key, value]) => {
-        if (!toAtom.has(key)) {
-          console.warn(`Fixture has unknown atom: ${key}`)
+  const exportFixture = async () => {
+    const values = Array.from(snapshot.values).reduce(
+      (acc, [key, value]) => {
+        if (!key.debugLabel) {
           return acc
         }
 
-        acc.set(toAtom.get(key), value)
+        acc[key.debugLabel] = { value }
         return acc
-      }, new Map()),
-      dependents: new Map(),
+      },
+      {} as Record<string, { value: unknown }>,
+    )
+
+    const output = `export default ${JSON.stringify(values, null, 2)}\n`
+
+    await navigator.clipboard.writeText(output)
+    toast.success('Fixture copied to clipboard', {
+      description: 'Fixture source copied to clipboard',
+    })
+  }
+
+  const applyFixture = async (path: string) => {
+    if (snapshot.values.size === 0) {
+      return
+    }
+
+    let fixture: FixtureRecord
+    try {
+      fixture = await loadFixture(path)
+    } catch (error) {
+      if (error instanceof FixtureParseError) {
+        toast.error('Fixture parse failed', {
+          description: 'Check the console for more details',
+        })
+        console.warn('Invalid fixture', z.treeifyError(error.zodError))
+      } else if (error instanceof FixtureNotFoundError) {
+        toast.error('Fixture not found', {
+          description: 'Check the console for more details',
+        })
+      } else {
+        throw error
+      }
+      return
+    }
+
+    const { next, unknownAtoms } = nextSnapshot(snapshot, fixture)
+    if (unknownAtoms.length > 0) {
+      toast.warning(`Unknown fixture atoms: ${unknownAtoms.join(', ')}`)
     }
 
     setSnapshot(next)
-  }, [current, setSnapshot, snapshot.values.size])
+    setCurrent(path)
+    const name = fixtureNameFromPath(path)
+    toast.success(`Applied fixture: ${name}`)
+  }
 
   return (
-    <div className="flex flex-col gap-2 p-8">
-      <div className="flex items-center gap-2">
-        <Label htmlFor="fixture-select">Fixture</Label>
-        <Select onValueChange={setCurrent} value={current ?? undefined}>
-          <SelectTrigger id="fixture-select">
-            <SelectValue placeholder="Select fixture" />
-          </SelectTrigger>
-          <SelectContent>
-            {fixturePaths.map(path => (
-              <SelectItem key={path} value={path}>
-                {path.split('/').pop()?.replace('.ts', '') ?? path}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <pre className="rounded-md border p-3 text-sm">
-        {JSON.stringify(fixture, null, 2)}
-      </pre>
-    </div>
+    <>
+      <CommandGroup heading="Fixtures">
+        <CommandItem
+          onSelect={() =>
+            void exportFixture()
+              .catch(error => {
+                console.warn('Failed to copy fixture to clipboard', error)
+                toast.error('Fixture export failed', {
+                  description: 'Check the console for more details',
+                })
+              })
+              .finally(() => onDone?.())
+          }
+        >
+          <CopyIcon />
+          Export fixture to clipboard
+        </CommandItem>
+        <CommandItem onSelect={disableFixtureOverrides}>
+          <CircleOffIcon />
+          Disable fixture overrides
+        </CommandItem>
+        {fixturePaths.map(path => {
+          const name = fixtureNameFromPath(path)
+          const isSelected = selectedName === name
+          return (
+            <CommandItem
+              key={path}
+              onSelect={() =>
+                void applyFixture(path)
+                  .catch(error => {
+                    console.warn('Failed to apply fixture', error)
+                    toast.error('Fixture apply failed', {
+                      description: 'Check the console for more details',
+                    })
+                  })
+                  .finally(() => onDone?.())
+              }
+            >
+              {isSelected ? (
+                <CheckIcon className="text-primary" />
+              ) : (
+                <CircleIcon className="text-muted-foreground" />
+              )}
+              {`Apply fixture: ${name}`}
+            </CommandItem>
+          )
+        })}
+      </CommandGroup>
+      <CommandSeparator />
+    </>
   )
 }

@@ -41,7 +41,7 @@ impl WithSql for inspector::sink::Response<Process, Record> {
         let process_pk: i64 =
             self.identity.assertion.insert(pool).await?.get("pk");
 
-        let writer_id = self.identity.observed.as_bytes().to_vec();
+        let writer_id = self.identity.observed.to_string();
 
         sqlx::query(
             r#"

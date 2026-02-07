@@ -20,7 +20,7 @@ CREATE TABLE records (
   ts_ms         INTEGER NOT NULL,
   received_ms   INTEGER NOT NULL,
 
-  writer_id     BLOB NOT NULL,
+  writer_id     TEXT NOT NULL,
 
   span_id       INTEGER,
   parent_span_id INTEGER,

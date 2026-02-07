@@ -124,8 +124,6 @@ where
         + 'static,
     Body: serde::de::DeserializeOwned + std::fmt::Debug + Send + Sync + 'static,
 {
-    // #[tracing::instrument(name = "SinkHandler::accept", target = DROP_TARGET,
-    // skip_all)]
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         metrics::counter!("sink.accept_connection").increment(1);
         let peer = connection.remote_id();

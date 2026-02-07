@@ -11,21 +11,37 @@
 ### Fixtures
 
 A fixture allows you to set any (or all) of the data in the application to a
-known state. To author a fixture, add a file to the `./fixtures` directory. It
-needs to contain:
+known state. You can export the current state of the UI via. the dev command
+palette (`cmd-p`). This will add it to your clipboard. Paste that into a file in
+the `./fixtures/myFixture.ts` directory and it will be available on reload.
+
+Alternatively, you can author your own fixture. It needs to contain:
 
 ```ts
 export default {
-  countAtom: 0,
+  countAtom: { value: 0 },
 };
 ```
 
 Where `countAtom` is the name of the atom you'd like to have set (or the
-atom.debugLabel). Don't include atoms that are derived, setting their values
-will do nothing.
+atom.debugLabel). You don't need to be exhaustive, just add the atoms you want.
+Additionally, don't include atoms that are derived, setting their values will do
+nothing.
 
-To load a fixture, make sure the `FixturePanel` component is included. That will
-provide a dropdown that lets you select the fixture you'd like to load.
+You can also have fixtures that run functions. For example:
+
+```ts
+import { countAtom } from "./stuff.tsx";
+
+export default {
+  derivedAtom = { read: (get) => get(countAtom) + 100 },
+};
+```
+
+This has the same parameters as atoms (`{ read: Getter, write: Setter }`).
+
+To load a fixture, open the dev command palette (`cmd-p`). You'll be able to
+select from any of the available fixtures.
 
 Note: if there is an atom you want to make sure is _not_ settable, set the
 `.debugPrivate` property on it.

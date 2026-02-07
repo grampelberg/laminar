@@ -113,7 +113,7 @@ pub fn run() {
             let data_path = app.handle().path().app_data_dir()?;
 
             #[cfg(feature = "clean")]
-            clean_app_data(data_path)?;
+            clean_app_data(data_path.clone())?;
 
             #[cfg(debug_assertions)]
             enable_devtools(
