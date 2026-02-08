@@ -3,11 +3,11 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-} from '@tanstack/react-table'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useRef } from 'react'
+} from "@tanstack/react-table";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useEffect, useRef } from "react";
 
-import type { RecordRow } from '@/db.tsx'
+import type { RecordRow } from "@/db.tsx";
 import {
   Table,
   TableBody,
@@ -15,163 +15,139 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from './components/ui/table.tsx'
+} from "@/components/ui/table.tsx";
 import {
   isNearTopAtom,
   loadMoreRowsAtom,
   pendingNewRowsAtom,
   refreshRowsAtom,
   rowsStateAtom,
-} from './db.tsx'
+} from "@/db.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { LevelBadge } from "@/components/level-badge";
+import { Timestamp } from "@/components/timestamp";
 
 interface ColumnMeta {
-  headClassName?: string
-  cellClassName?: string
+  headClassName?: string;
+  cellClassName?: string;
 }
 
-const columnHelper = createColumnHelper<RecordRow>()
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
-  timeStyle: 'medium',
-})
-const levelLabelMap: Record<number, string> = {
-  0: 'TRACE',
-  1: 'DEBUG',
-  2: 'INFO',
-  3: 'WARN',
-  4: 'ERROR',
-  5: 'OFF',
-}
-
-const formatLevel = (value: unknown): string => {
-  const level = typeof value === 'number' ? value : Number(value)
-  return levelLabelMap[level] ?? String(value)
-}
-
-const levelClassMap: Record<number, string> = {
-  0: 'text-muted-foreground',
-  1: 'text-blue-600',
-  2: 'text-emerald-600',
-  3: 'text-amber-600',
-  4: 'text-red-600',
-  5: 'text-zinc-500',
-}
-
-const getLevelClassName = (value: unknown): string => {
-  const level = typeof value === 'number' ? value : Number(value)
-  return levelClassMap[level] ?? 'text-foreground'
-}
-const NEAR_TOP_THRESHOLD_PX = 32
-const NEAR_BOTTOM_THRESHOLD_PX = 64
+const columnHelper = createColumnHelper<RecordRow>();
+const NEAR_TOP_THRESHOLD_PX = 32;
+const NEAR_BOTTOM_THRESHOLD_PX = 64;
 
 export const columnDefinition = [
-  columnHelper.accessor('ts_ms', {
-    header: 'Timestamp',
-    cell: info => {
-      const ms = info.getValue()
-      if (!Number.isFinite(ms)) {
-        return '-'
-      }
-      return dateTimeFormatter.format(new Date(ms))
-    },
+  columnHelper.accessor("ts_ms", {
+    header: "Timestamp",
+    cell: (info) => <Timestamp ms={info.getValue()} />,
     meta: {
-      headClassName: 'w-1 whitespace-nowrap',
-      cellClassName: 'whitespace-nowrap',
+      headClassName: "w-1 whitespace-nowrap",
+      cellClassName: "whitespace-nowrap",
     },
   }),
-  columnHelper.accessor('level', {
-    header: 'Level',
-    cell: info => (
-      <span className={getLevelClassName(info.getValue())}>
-        {formatLevel(info.getValue())}
-      </span>
-    ),
+  columnHelper.accessor("level", {
+    header: "Level",
+    cell: (info) => <LevelBadge level={info.getValue()} />,
     meta: {
-      headClassName: 'w-1 whitespace-nowrap',
-      cellClassName: 'whitespace-nowrap',
+      headClassName: "w-1 whitespace-nowrap",
+      cellClassName: "whitespace-nowrap",
     },
   }),
-  columnHelper.accessor('target', {
-    header: 'Source',
+  columnHelper.accessor("target", {
+    header: "Source",
     meta: {
-      headClassName: 'w-32',
-      cellClassName: 'w-32 truncate',
+      // TODO: w- classes are not doing what you think they're doing. This should be
+      // more dynamic so you can do column resizing.
+      headClassName: "w-24",
+      cellClassName: "w-24 truncate font-mono text-xs",
     },
   }),
   // TODO:
   // - This is going to be multi-line and should maybe to in a <pre>?
-  columnHelper.accessor(row => row.message, {
-    id: 'message',
-    header: 'Message',
+  columnHelper.accessor((row) => row.message, {
+    id: "message",
+    header: "Message",
   }),
-]
+];
 
 export const RecordsTable = () => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { rows, hasMore, isLoading } = useAtomValue(rowsStateAtom)
-  const [isNearTop, setIsNearTop] = useAtom(isNearTopAtom)
-  const pendingNewRows = useAtomValue(pendingNewRowsAtom)
-  const refreshRows = useSetAtom(refreshRowsAtom)
-  const loadMoreRows = useSetAtom(loadMoreRowsAtom)
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { rows, hasMore, isLoading } = useAtomValue(rowsStateAtom);
+  const [isNearTop, setIsNearTop] = useAtom(isNearTopAtom);
+  const pendingNewRows = useAtomValue(pendingNewRowsAtom);
+  const refreshRows = useSetAtom(refreshRowsAtom);
+  const loadMoreRows = useSetAtom(loadMoreRowsAtom);
 
   const table = useReactTable<RecordRow>({
     data: rows,
     columns: columnDefinition,
     getCoreRowModel: getCoreRowModel(),
-  })
+  });
 
-  useEffect(() => {
-    const element = containerRef.current
-    if (!element) {
-      return
-    }
-    setIsNearTop(element.scrollTop <= NEAR_TOP_THRESHOLD_PX)
-  }, [setIsNearTop])
-
-  useEffect(() => {
-    if (!isNearTop || pendingNewRows === 0) {
-      return
-    }
-
-    void refreshRows()
-  }, [isNearTop, pendingNewRows, refreshRows])
+  const getViewport = useCallback(
+    () =>
+      scrollAreaRef.current?.querySelector<HTMLDivElement>(
+        "[data-slot='scroll-area-viewport']",
+      ) ?? null,
+    [],
+  );
 
   const handleScroll = (element: HTMLDivElement) => {
-    setIsNearTop(element.scrollTop <= NEAR_TOP_THRESHOLD_PX)
+    setIsNearTop(element.scrollTop <= NEAR_TOP_THRESHOLD_PX);
 
     const distanceFromBottom =
-      element.scrollHeight - (element.scrollTop + element.clientHeight)
+      element.scrollHeight - (element.scrollTop + element.clientHeight);
 
     if (
       distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX &&
       hasMore &&
       !isLoading
     ) {
-      void loadMoreRows()
+      void loadMoreRows();
     }
-  }
+  };
+
+  // Keep a stable ref to the latest handleScroll to avoid re-attaching the listener
+  const handleScrollRef = useRef(handleScroll);
+  handleScrollRef.current = handleScroll;
+
+  // Attach scroll listener to the ScrollArea viewport
+  useEffect(() => {
+    const viewport = getViewport();
+    if (!viewport) return;
+
+    setIsNearTop(viewport.scrollTop <= NEAR_TOP_THRESHOLD_PX);
+
+    const onScroll = () => handleScrollRef.current(viewport);
+    viewport.addEventListener("scroll", onScroll);
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, [getViewport, setIsNearTop]);
 
   useEffect(() => {
-    const element = containerRef.current
-    if (!element) {
-      return
+    if (!isNearTop || pendingNewRows === 0) {
+      return;
     }
-    handleScroll(element)
-  }, [hasMore, isLoading, rows.length])
+
+    void refreshRows();
+  }, [isNearTop, pendingNewRows, refreshRows]);
+
+  // Re-check scroll position when data changes
+  useEffect(() => {
+    const viewport = getViewport();
+    if (!viewport) return;
+    handleScroll(viewport);
+  }, [hasMore, isLoading, rows.length]);
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full w-full overflow-auto rounded-md border"
-      onScroll={event => {
-        handleScroll(event.currentTarget)
-      }}
+    <ScrollArea
+      ref={scrollAreaRef}
+      className="h-[calc(100vh-8rem)] w-full rounded-md border"
     >
       <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map(headerGroup => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map(header => (
+        <TableHeader className="sticky top-0 z-10 bg-card/50 border-b border-border backdrop-blur-md">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id} className="hover:bg-transparent">
+              {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
                   className={
@@ -192,12 +168,12 @@ export const RecordsTable = () => {
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map(row => (
+            table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
+                data-state={row.getIsSelected() && "selected"}
               >
-                {row.getVisibleCells().map(cell => (
+                {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
                     className={
@@ -222,6 +198,6 @@ export const RecordsTable = () => {
           )}
         </TableBody>
       </Table>
-    </div>
-  )
-}
+    </ScrollArea>
+  );
+};

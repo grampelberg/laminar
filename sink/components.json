@@ -20,6 +20,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@storybook": "https://registry.lloydrichards.dev/v3/radix/{name}.json"
+    "@storybook": "https://registry.lloydrichards.dev/v3/radix/{name}.json",
+    "@magicui": "https://magicui.design/r/{name}"
   }
 }
