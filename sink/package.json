@@ -26,6 +26,7 @@
     "jotai-optics": "^0.4.0",
     "kysely": "^0.28.11",
     "lucide-react": "^0.563.0",
+    "neverthrow": "^8.2.0",
     "radix-ui": "^1.4.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

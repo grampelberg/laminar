@@ -76,6 +76,9 @@ You can then reach it by visiting `/design`. Note that there will be javascript
 errors for most normal routes as they're going to be expecting the tauri
 backend.
 
+Note: you can't run this and tauri at the same time as they use a single vite
+server.
+
 ### Run
 
 ```bash

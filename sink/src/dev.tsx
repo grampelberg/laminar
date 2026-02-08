@@ -11,6 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command.tsx'
+import { FixtureRuntime } from '@/dev/fixtures/runtime.tsx'
 import { FixturesCommand } from '@/dev/fixtures.tsx'
 
 export const DevCommands = () => {
@@ -27,6 +28,10 @@ export const DevCommands = () => {
 
   return (
     <>
+      {/* Actions */}
+      <FixtureRuntime />
+
+      {/* UI */}
       <Button
         aria-label="Open developer commands"
         className="fixed bottom-4 left-4 z-50 size-10 rounded-full shadow-lg"
