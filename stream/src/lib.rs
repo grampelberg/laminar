@@ -9,12 +9,18 @@ use std::{collections::HashMap, fmt};
 use eyre::Result;
 use iroh::{Endpoint, EndpointAddr, address_lookup::MdnsAddressLookup};
 pub use reader::Reader;
-use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::{
+    sync::mpsc::{self, Receiver, Sender},
+    task::JoinHandle,
+};
 use tracing::{Instrument, Subscriber, field::Visit};
 use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
 
-use crate::config::LayerConfig;
 pub use crate::{api::*, config::Config};
+use crate::{
+    config::LayerConfig,
+    sink::{EmitterOpts, SinkDriver, spawn_driver},
+};
 
 const DROP_TARGET: &str = "inspector::drop";
 
@@ -23,31 +29,36 @@ pub struct Writer {
     remote: Option<EndpointAddr>,
 }
 
+async fn run_with_driver(
+    opts: EmitterOpts,
+    driver: impl SinkDriver + Send + Sync + 'static,
+    mut rx: Receiver<Record>,
+) -> Result<JoinHandle<()>> {
+    let emitter = spawn_driver(opts.buffer_size, driver).await?;
+
+    let emitter_span =
+        tracing::error_span!(parent: &tracing::Span::current(), "emitter");
+
+    Ok(tokio::spawn(
+        async move {
+            while let Some(msg) = rx.recv().await {
+                if emitter.send(msg).is_err() {
+                    tracing::error!("shutting down writer, driver has stopped");
+
+                    return;
+                }
+            }
+        }
+        .instrument(emitter_span),
+    ))
+}
+
 // TODO:
 // - Is there some way to defer close until the buffer has been flushed?
 // - Maybe this can be a raw function instead of a struct? Definitely not doing
 //   much.
 impl Writer {
-    pub async fn run(mut self) -> Result<()> {
-        let Some(addr) = self.remote else {
-            tracing::warn!("disabling writer, no address configured");
-            return Ok(());
-        };
-
-        let endpoint = Endpoint::builder()
-            .address_lookup(MdnsAddressLookup::builder())
-            .bind()
-            .in_current_span()
-            .await?;
-
-        let emitter = sink::Client::builder()
-            .endpoint(endpoint)
-            .address(addr)
-            .identity(Process::default())
-            .build()
-            .spawn::<Record>()
-            .await?;
-
+    pub async fn run(self) -> Result<JoinHandle<()>> {
         // The `inspector::drop` target is important. That's used for filtering
         // so that event/span recursion doesn't happen. Anything child
         // that has a parent including that target will end up being
@@ -55,8 +66,26 @@ impl Writer {
         let span = tracing::error_span!(
             target: DROP_TARGET,
             parent: tracing::Span::current(),
-            "Writer::emitter"
+            "Writer::run"
         );
+
+        let _drop = span.enter();
+
+        let Some(addr) = self.remote else {
+            tracing::warn!("disabling writer, no address configured");
+            return Ok(tokio::spawn(async {}));
+        };
+
+        let opts = EmitterOpts::default();
+        let endpoint = Endpoint::builder().bind().in_current_span().await?;
+
+        let driver = sink::Client::builder()
+            .endpoint(endpoint)
+            .opts(opts.clone())
+            .address(addr)
+            .identity(Process::default())
+            .build()
+            .into_driver();
 
         if !tracing::dispatcher::get_default(|d| {
             d.enabled(span.metadata().expect("just constructed"))
@@ -67,21 +96,7 @@ impl Writer {
             )
         }
 
-        tokio::spawn(
-            async move {
-                while let Some(msg) = self.rx.recv().await {
-                    emitter
-                        .send(msg)
-                        .inspect_err(|e| {
-                            tracing::error!(err = ?e, "failed to push to queue");
-                        })
-                        .ok();
-                }
-            }
-            .instrument(span),
-        );
-
-        Ok(())
+        run_with_driver(opts, driver, self.rx).await
     }
 }
 
@@ -145,12 +160,12 @@ impl InspectorLayer {
     }
 
     fn send(&self, record: Record) {
-        if self.disabled {
+        if self.disabled() {
             return;
         }
 
         let Ok(permit) = self.tx.try_reserve() else {
-            eprintln!("Failed to reserve buffer space for inspector record");
+            tracing::debug!("unable to send record");
             return;
         };
 
@@ -158,7 +173,7 @@ impl InspectorLayer {
     }
 
     pub fn disabled(&self) -> bool {
-        self.disabled
+        self.disabled || self.tx.is_closed()
     }
 }
 
@@ -193,7 +208,7 @@ where
         id: &tracing::span::Id,
         ctx: Context<'_, S>,
     ) {
-        if self.disabled {
+        if self.disabled() {
             return;
         }
 
@@ -214,8 +229,20 @@ where
         // dropped in the tests. To keep from having a cardinality explosion, we
         // only do this for running tests.
         #[cfg(test)]
-        metrics::counter!("layer.span", "target" => attrs.metadata().target())
-            .increment(1);
+        {
+            metrics::counter!("layer.span", "target" => attrs.metadata().target())
+                .increment(1);
+
+            let tree = ctx
+                .span_scope(id)
+                .map(|scope| scope.map(|item| item.name()).collect::<Vec<_>>());
+
+            tracing::debug!(
+                tree = ?tree,
+                "emitting span"
+            );
+        }
+
         metrics::counter!("layer.span").increment(1);
 
         let record = Record::builder()
@@ -229,7 +256,7 @@ where
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<'_, S>) {
-        if self.disabled {
+        if self.disabled() {
             return;
         }
 
@@ -242,6 +269,24 @@ where
             metrics::counter!("layer.drop.event").increment(1);
 
             return;
+        }
+
+        // I'm spot checking that the networking events are *mostly* being
+        // dropped in the tests. To keep from having a cardinality explosion, we
+        // only do this for running tests.
+        #[cfg(test)]
+        {
+            metrics::counter!("layer.event", "target" => event.metadata().target())
+                .increment(1);
+
+            let tree = ctx
+                .event_scope(event)
+                .map(|scope| scope.map(|item| item.name()).collect::<Vec<_>>());
+
+            tracing::debug!(
+                tree = ?tree,
+                "emitting event"
+            );
         }
 
         metrics::counter!("layer.event").increment(1);
@@ -326,13 +371,18 @@ impl Visit for FieldVisitor {
 
 #[cfg(test)]
 mod test {
+    use std::{sync::Arc, time::Duration};
+
     use iroh::SecretKey;
     use metrics::Key;
     use rand::rng;
-    use test_util::metrics::MemoryRecorder;
+    use serde::Serialize;
+    use test_util::{Telemetry, metrics::MemoryRecorder};
+    use tokio::{sync::broadcast, time};
     use tracing_subscriber::{filter::LevelFilter, prelude::*};
 
     use super::*;
+    use crate::sink::SinkDriver;
 
     // TODO: need a multi-threaded test
     #[tokio::test]
@@ -423,6 +473,72 @@ mod test {
                 == 0,
             "found iroh::socket, should be dropping more targets: {targets:?}"
         );
+
+        Ok(())
+    }
+
+    // Verify that everything is disabled when a remote is not configured.
+    #[tokio::test]
+    async fn test_disabled() -> Result<()> {
+        let (layer, writer) = InspectorLayer::builder()
+            .config(LayerConfig::builder().build())
+            .build()?;
+
+        time::timeout(Duration::from_millis(10), writer.run()).await??;
+
+        assert!(layer.disabled());
+
+        Ok(())
+    }
+
+    // Check to make sure the writer continues to run, even when the driver is
+    // unable to connect. Events should continue to be sent.
+    #[tokio::test]
+    async fn test_reconnect() -> Result<()> {
+        let _tel = Telemetry::new();
+
+        let keypair = SecretKey::generate(&mut rng());
+        tracing::info!("{}", keypair.public());
+
+        let (layer, writer) = InspectorLayer::builder()
+            .config(LayerConfig::builder().remote(keypair.public()).build())
+            .build()?;
+
+        let handle = writer.run().await?;
+        time::sleep(Duration::from_millis(100)).await;
+
+        assert!(!handle.is_finished());
+        assert!(!layer.disabled());
+
+        Ok(())
+    }
+
+    struct MockDriver;
+
+    #[async_trait::async_trait]
+    impl SinkDriver for MockDriver {
+        async fn run<T>(self, _: broadcast::Receiver<Arc<T>>)
+        where
+            T: Serialize + Send + Sync + 'static,
+        {
+        }
+    }
+
+    #[tokio::test]
+    async fn test_garbage_collection() -> Result<()> {
+        let _tel = Telemetry::new();
+
+        let (layer, writer) = InspectorLayer::builder()
+            .config(LayerConfig::builder().build())
+            .build()?;
+
+        time::timeout(
+            Duration::from_millis(10),
+            run_with_driver(EmitterOpts::default(), MockDriver, writer.rx),
+        )
+        .await??;
+
+        assert!(layer.disabled());
 
         Ok(())
     }

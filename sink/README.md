@@ -97,6 +97,11 @@ bun tauri dev
 - I can't see the logs
   - My font is too small
   - It is going by too fast
+  - I want some kind of control over the formatting but can't change the logging
+    framework
+- My logs go away
+  - If I'm outputing logs to the terminal, they're gone as soon as my session
+    goes away.
 - The volume is too high
   - Level is close to the best tool for filtering.
   - Using grep to filter doesn't let me look back over previous logs.
@@ -110,3 +115,27 @@ bun tauri dev
   - How do I get logs off the mobile device?
   - Where are they in your platform?
 - I don't want to operate and maintain a bunch of expensive o11y infrastructure.
+
+### What's novel?
+
+- Logs are stored locally, no cloud infrastructure required.
+- p2p means that:
+  - You can send logs _from_ anywhere _to_ anywhere. There's no need to have a
+    public IP address.
+  - Your address stays the same, no matter where you are. If you don't change
+    your `SecretKey`, the configuration for where to send logs never changes.
+- No waiting, they're sent as fast as they appear.
+
+### Important, but not novel
+
+- Integrated with tracing, no need for an external process.
+- One UI for multiple streams. You can forward everything to your local app and
+  then filter it.
+
+### Naming
+
+- I don't want anything with the word "span" in it.
+- I'm not a fan of "tracing".
+- `tail` is a classic that is similar to what this is doing.
+- I don't mind words that sound fine but mean nothing.
+- Having something that lends itself well to a logo or mascot would be nice.

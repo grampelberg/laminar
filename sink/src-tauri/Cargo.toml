@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2.10.2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -39,7 +39,7 @@ sqlx = { version = "0.8.6", features = [
   "sqlite-preupdate-hook",
 ] }
 bon = { version = "3.8.2", features = ["implied-bounds"] }
-iroh = "0.96.0"
+iroh = "0.96.1"
 
 [features]
 clean = []

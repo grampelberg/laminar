@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use eyre::Result;
 use inspector::config::{KeySource, LayerConfig, ReaderConfig};
 use iroh::EndpointId;
-use tauri::{Manager, WebviewWindow, Wry};
+use tauri::{AppHandle, Manager, WebviewWindow, Wry};
 use tracing_subscriber::{
     filter::{EnvFilter, LevelFilter},
     prelude::*,
@@ -61,15 +61,15 @@ fn db_url(data_path: PathBuf) -> Result<PathBuf> {
     Ok(data_path.join(DB_NAME))
 }
 
-fn clean_app_data(path: PathBuf) -> Result<()> {
+fn clean_app_data(path: &PathBuf) -> Result<()> {
     tracing::error!("cleaning {}", path.to_string_lossy());
 
-    std::fs::remove_dir_all(&path)?;
+    std::fs::remove_dir_all(&path).ok();
 
     Ok(())
 }
 
-fn load_config(config_path: PathBuf) -> Result<(LayerConfig, ReaderConfig)> {
+fn load_config(config_path: &PathBuf) -> Result<(LayerConfig, ReaderConfig)> {
     let fpath = config_path.join("config.toml");
 
     let (layer, mut reader) =
@@ -84,6 +84,33 @@ fn load_config(config_path: PathBuf) -> Result<(LayerConfig, ReaderConfig)> {
     Ok((layer, reader))
 }
 
+struct Storage {
+    config: PathBuf,
+    data: PathBuf,
+}
+
+impl Storage {
+    fn from(handle: &AppHandle<Wry>) -> Result<Self> {
+        Ok(Self {
+            config: handle.path().app_config_dir()?.join("config"),
+            data: handle.path().app_data_dir()?.join("data"),
+        })
+    }
+}
+
+impl std::fmt::Debug for Storage {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "Storage {{ config: {:?}, data: {:?} }}",
+            self.config, self.data
+        )
+    }
+}
+
 struct AppData {
     address: EndpointId,
 }
@@ -94,16 +121,19 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let (layer_config, reader_config) =
-                load_config(app.handle().path().app_config_dir()?)?;
+            let storage = Storage::from(app.handle())?;
+
+            let (layer_config, reader_config) = load_config(&storage.config)?;
             let key = reader_config.key.load()?;
 
             let enable = layer_config.remote != Some(key.public());
+            setup_logging(layer_config.clone(), enable)?;
 
             tracing::info!(
-                "key: {:?} remote: {:?}",
-                key.public(),
-                layer_config.remote
+                key = ?key.public(),
+                remote = ?layer_config.remote,
+                storage = ?storage,
+                "config"
             );
 
             app.manage(AppData {
@@ -112,8 +142,12 @@ pub fn run() {
 
             let data_path = app.handle().path().app_data_dir()?;
 
+            if key.public().to_string().as_str() != "5364174d1c46a3700eae96f4adc13eeb67202fcd74e998c92e693b55f47e9698" {
+                panic!("fail");
+            }
+
             #[cfg(feature = "clean")]
-            clean_app_data(data_path.clone())?;
+            clean_app_data(&storage.data)?;
 
             #[cfg(debug_assertions)]
             enable_devtools(

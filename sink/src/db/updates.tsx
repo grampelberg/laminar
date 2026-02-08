@@ -2,7 +2,8 @@ import { type UnlistenFn, listen } from '@tauri-apps/api/event'
 import { useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
-import { refreshRowsAtom } from '../db.tsx'
+import { refreshRowsAtom } from '@/db.tsx'
+import { useMock } from '@/mock.ts'
 
 let stop: UnlistenFn | undefined = undefined
 
@@ -13,8 +14,11 @@ export const useRowsUpdates = () => {
     if (stop) {
       return
     }
-
     ;(async () => {
+      if (useMock) {
+        return
+      }
+
       stop = await listen('got_envelope', () => refreshRows())
     })()
 

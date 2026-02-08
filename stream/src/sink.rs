@@ -208,11 +208,12 @@ impl From<ConnectError> for DriverError {
 
         match err {
             ConnectError::Connect { source, .. } => match source {
-                ConnectWithOptsError::NoAddress { source, meta } => {
-                    Self::Permanent {
-                        source: source.into(),
-                        location: meta.location().cloned(),
-                    }
+                // This will happen when reaching out to the discovery service
+                // for the endpoint ID and not finding it. It is a transient
+                // error and we should just retry to see if the address comes
+                // online at some future point.
+                ConnectWithOptsError::NoAddress { source, .. } => {
+                    Self::Transient(source.into())
                 }
                 ConnectWithOptsError::InternalConsistencyError {
                     meta, ..
@@ -222,6 +223,7 @@ impl From<ConnectError> for DriverError {
                 },
                 _ => Self::Transient(source.into()),
             },
+
             _ => Self::Permanent {
                 source: err.into(),
                 location: None,
@@ -238,77 +240,28 @@ impl From<ConnectionError> for DriverError {
     }
 }
 
-#[derive(bon::Builder)]
-struct Driver {
-    endpoint: Endpoint,
-    #[builder(into)]
-    addr: EndpointAddr,
-
-    // Serialized assertion/identity frame sent on each (re)connect.
-    identity: Vec<u8>,
-
-    connect_timeout: Duration,
-
-    connection: Option<Connection>,
-    stream: Option<SendStream>,
+#[async_trait::async_trait]
+pub(crate) trait SinkDriver {
+    async fn run<T>(self, rx: broadcast::Receiver<Arc<T>>)
+    where
+        T: Serialize + Send + Sync + 'static;
 }
 
-impl Driver {
-    fn is_connected(&self) -> bool {
-        self.stream.is_some()
-    }
-
-    async fn connect(&self) -> Result<(Connection, SendStream), DriverError> {
-        tracing::debug!("trying to connect ....");
-        metrics::counter!("driver.reconnect").increment(1);
-
-        let conn = time::timeout(
-            self.connect_timeout,
-            self.endpoint.connect(self.addr.clone(), ALPN),
-        )
-        .await??;
-
-        let stream = conn.open_uni().await?;
-
-        Ok((conn, stream))
-    }
-
-    async fn disconnect(&self) {
-        let Some(stream) = self.stream.as_ref() else {
-            return future::pending::<()>().await;
-        };
-
-        if let Err(e) = stream.stopped().await {
-            tracing::debug!(error = ?e, "stream stopped");
-        }
-    }
-
-    async fn emit_bytes(&mut self, bytes: &[u8]) -> Result<(), BoxError> {
-        let Some(stream) = self.stream.as_mut() else {
-            return Err("failed to get stream, disconnected?".into());
-        };
-
-        stream.write_u16(bytes.len() as u16).await?;
-        stream.write_all(bytes).await?;
-
-        metrics::counter!("driver.emit").increment(1);
-        Ok(())
-    }
-
-    async fn emit<T>(&mut self, data: T) -> Result<(), BoxError>
-    where
-        T: Serialize,
-    {
-        let bytes = postcard::to_allocvec(&data)?;
-        self.emit_bytes(&bytes).await
-    }
-
+#[async_trait::async_trait]
+impl SinkDriver for Driver {
     async fn run<T>(mut self, mut rx: broadcast::Receiver<Arc<T>>)
     where
-        T: Serialize,
+        T: Serialize + Send + Sync + 'static,
     {
+        let mut retry_connect = tokio::time::interval(
+            std::time::Duration::from_millis(Driver::RECONNECT_BACKOFF),
+        );
+        retry_connect.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+
         loop {
             if !self.is_connected() {
+                retry_connect.tick().await;
+
                 let (conn, stream) = match self.connect().await {
                     Ok(v) => v,
                     Err(e) => {
@@ -322,7 +275,7 @@ impl Driver {
                                 tracing::error!(
                                     "unable to connect, stopping driver"
                                 );
-                                return;
+                                break;
                             }
                             DriverError::Transient(_) => {
                                 continue;
@@ -378,6 +331,76 @@ impl Driver {
                 }
             }
         }
+
+        self.endpoint.close().await;
+    }
+}
+
+#[derive(bon::Builder)]
+pub(crate) struct Driver {
+    endpoint: Endpoint,
+    #[builder(into)]
+    addr: EndpointAddr,
+
+    // Serialized assertion/identity frame sent on each (re)connect.
+    identity: Vec<u8>,
+
+    connect_timeout: Duration,
+
+    connection: Option<Connection>,
+    stream: Option<SendStream>,
+}
+
+impl Driver {
+    const RECONNECT_BACKOFF: u64 = 10000;
+
+    fn is_connected(&self) -> bool {
+        self.stream.is_some()
+    }
+
+    async fn connect(&self) -> Result<(Connection, SendStream), DriverError> {
+        tracing::debug!("trying to connect ....");
+        metrics::counter!("driver.reconnect").increment(1);
+
+        let conn = time::timeout(
+            self.connect_timeout,
+            self.endpoint.connect(self.addr.clone(), ALPN),
+        )
+        .await??;
+
+        let stream = conn.open_uni().await?;
+
+        Ok((conn, stream))
+    }
+
+    async fn disconnect(&self) {
+        let Some(stream) = self.stream.as_ref() else {
+            return future::pending::<()>().await;
+        };
+
+        if let Err(e) = stream.stopped().await {
+            tracing::debug!(error = ?e, "stream stopped");
+        }
+    }
+
+    async fn emit_bytes(&mut self, bytes: &[u8]) -> Result<(), BoxError> {
+        let Some(stream) = self.stream.as_mut() else {
+            return Err("failed to get stream, disconnected?".into());
+        };
+
+        stream.write_u16(bytes.len() as u16).await?;
+        stream.write_all(bytes).await?;
+
+        metrics::counter!("driver.emit").increment(1);
+        Ok(())
+    }
+
+    async fn emit<T>(&mut self, data: T) -> Result<(), BoxError>
+    where
+        T: Serialize,
+    {
+        let bytes = postcard::to_allocvec(&data)?;
+        self.emit_bytes(&bytes).await
     }
 }
 
@@ -396,18 +419,32 @@ impl<T> EmitterSender<T> {
     }
 }
 
-#[derive(bon::Builder)]
+#[derive(Clone, bon::Builder)]
 pub struct EmitterOpts {
     #[builder(default = 100)]
-    buffer_size: usize,
+    pub buffer_size: usize,
     #[builder(default = Duration::from_secs(5))]
-    connect_timeout: Duration,
+    pub connect_timeout: Duration,
 }
 
 impl Default for EmitterOpts {
     fn default() -> Self {
         Self::builder().build()
     }
+}
+
+pub(crate) async fn spawn_driver<T>(
+    buffer_size: usize,
+    driver: impl SinkDriver + Send + Sync + 'static,
+) -> Result<EmitterSender<T>>
+where
+    T: Serialize + Send + Sync + 'static,
+{
+    let (tx, rx) = broadcast::channel(buffer_size);
+
+    tokio::spawn(driver.run(rx).in_current_span());
+
+    Ok(EmitterSender(tx))
 }
 
 #[derive(bon::Builder)]
@@ -427,26 +464,13 @@ impl<Assertion> Client<Assertion>
 where
     Assertion: Serialize,
 {
-    pub async fn spawn<T>(self) -> Result<EmitterSender<T>>
-    where
-        T: Serialize + Send + Sync + 'static,
-    {
-        let (tx, rx) = broadcast::channel(self.opts.buffer_size);
-
-        let identity = postcard::to_allocvec(&self.identity)?;
-
-        tokio::spawn(
-            Driver::builder()
-                .endpoint(self.endpoint)
-                .addr(self.address)
-                .identity(identity)
-                .connect_timeout(self.opts.connect_timeout)
-                .build()
-                .run(rx)
-                .in_current_span(),
-        );
-
-        Ok(EmitterSender(tx))
+    pub(crate) fn into_driver(self) -> Driver {
+        Driver::builder()
+            .endpoint(self.endpoint)
+            .addr(self.address)
+            .identity(postcard::to_allocvec(&self.identity).unwrap())
+            .connect_timeout(self.opts.connect_timeout.clone())
+            .build()
     }
 }
 
@@ -499,19 +523,20 @@ mod tests {
             .await?;
         endpoint.online().await;
 
-        let emitter: EmitterSender<u16> = Client::builder()
+        let opts = EmitterOpts::builder()
+            .buffer_size(1)
+            .connect_timeout(Duration::from_millis(100))
+            .build();
+        let driver = Client::builder()
             .endpoint(endpoint)
             .address(server_key.public())
             .identity(Process::default())
-            .opts(
-                EmitterOpts::builder()
-                    .buffer_size(1)
-                    .connect_timeout(Duration::from_millis(100))
-                    .build(),
-            )
+            .opts(opts.clone())
             .build()
-            .spawn::<u16>()
-            .await?;
+            .into_driver();
+
+        let emitter: EmitterSender<u16> =
+            spawn_driver::<u16>(opts.buffer_size, driver).await?;
 
         // Initial connection, this technically tests reconnect as the router
         // isn't running when the emitter starts up.
