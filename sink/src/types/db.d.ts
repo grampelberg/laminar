@@ -3,49 +3,50 @@
  * Please do not edit it manually.
  */
 
-import type { ColumnType } from "kysely";
+import type { ColumnType } from 'kysely'
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U>
+    ? ColumnType<S, I | undefined, U>
+    : ColumnType<T, T | undefined, T>
 
 export interface _SqlxMigrations {
-  checksum: Buffer;
-  description: string;
-  execution_time: string;
-  installed_on: Generated<string>;
-  success: number;
-  version: string | null;
+  checksum: Buffer
+  description: string
+  execution_time: string
+  installed_on: Generated<string>
+  success: number
+  version: string | null
 }
 
 export interface Processes {
-  hostname: string;
-  name: string;
-  pid: number;
-  pk: Generated<number>;
-  start_ms: number;
+  hostname: string
+  name: string
+  pid: number
+  pk: Generated<number>
+  start_ms: number
 }
 
 export interface Records {
-  fields_json: string;
-  file: string | null;
-  id: Generated<number>;
-  kind: number;
-  level: number;
-  line: number | null;
-  module_path: string | null;
-  name: string;
-  parent_span_id: number | null;
-  process_pk: number;
-  received_ms: number;
-  span_id: number | null;
-  target: string;
-  ts_ms: number;
-  writer_id: string;
+  fields_json: string
+  file: string | null
+  id: Generated<number>
+  kind: number
+  level: number
+  line: number | null
+  module_path: string | null
+  name: string
+  parent_span_id: number | null
+  process_pk: number
+  received_ms: number
+  span_id: number | null
+  target: string
+  ts_ms: number
+  writer_id: string
 }
 
 export interface DB {
-  _sqlx_migrations: _SqlxMigrations;
-  processes: Processes;
-  records: Records;
+  _sqlx_migrations: _SqlxMigrations
+  processes: Processes
+  records: Records
 }

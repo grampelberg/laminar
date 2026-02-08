@@ -13,27 +13,27 @@ import {
 const invoices = [
   {
     invoice: 'INV001',
+    paymentMethod: 'Credit Card',
     paymentStatus: 'Paid',
     totalAmount: '$250.00',
-    paymentMethod: 'Credit Card',
   },
   {
     invoice: 'INV002',
+    paymentMethod: 'PayPal',
     paymentStatus: 'Pending',
     totalAmount: '$150.00',
-    paymentMethod: 'PayPal',
   },
   {
     invoice: 'INV003',
+    paymentMethod: 'Bank Transfer',
     paymentStatus: 'Unpaid',
     totalAmount: '$350.00',
-    paymentMethod: 'Bank Transfer',
   },
   {
     invoice: 'INV004',
+    paymentMethod: 'Credit Card',
     paymentStatus: 'Paid',
     totalAmount: '$450.00',
-    paymentMethod: 'Credit Card',
   },
 ]
 
@@ -41,10 +41,8 @@ const invoices = [
  * Powerful table and datagrids built using TanStack Table.
  */
 const meta = {
-  title: 'ui/Table',
-  component: Table,
-  tags: ['autodocs'],
   argTypes: {},
+  component: Table,
   render: args => (
     <Table {...args}>
       <TableCaption>A list of your recent invoices.</TableCaption>
@@ -68,6 +66,8 @@ const meta = {
       </TableBody>
     </Table>
   ),
+  tags: ['autodocs'],
+  title: 'ui/Table',
 } satisfies Meta<typeof Table>
 
 export default meta

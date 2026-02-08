@@ -16,12 +16,13 @@ import {
  * Displays a list of options for the user to pick from—triggered by a button.
  */
 const meta: Meta<typeof Select> = {
-  title: 'ui/Select',
-  component: Select,
-  tags: ['autodocs'],
   argTypes: {},
   args: {
     onValueChange: fn(),
+  },
+  component: Select,
+  parameters: {
+    layout: 'centered',
   },
   render: args => (
     <Select {...args}>
@@ -59,9 +60,8 @@ const meta: Meta<typeof Select> = {
       </SelectContent>
     </Select>
   ),
-  parameters: {
-    layout: 'centered',
-  },
+  tags: ['autodocs'],
+  title: 'ui/Select',
 } satisfies Meta<typeof Select>
 
 export default meta
@@ -75,7 +75,6 @@ export const Default: Story = {}
 
 export const ShouldSelectOption: Story = {
   name: 'when an option is selected, should be checked',
-  tags: ['!dev', '!autodocs'],
   play: async ({ canvasElement, step }) => {
     const canvasBody = within(canvasElement.ownerDocument.body)
     const select = await canvasBody.findByRole('combobox')
@@ -98,4 +97,5 @@ export const ShouldSelectOption: Story = {
       )
     })
   },
+  tags: ['!dev', '!autodocs'],
 }

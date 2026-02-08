@@ -1,5 +1,5 @@
 import Database from '@tauri-apps/plugin-sql'
-import { atom, type Getter, type Setter } from 'jotai'
+import { type Getter, type Setter, atom } from 'jotai'
 import { focusAtom } from 'jotai-optics'
 import {
   DummyDriver,
@@ -12,6 +12,7 @@ import {
 } from 'kysely'
 
 import { useMock } from '@/mock'
+
 import type { DB, Records } from './types/db.ts'
 
 const queryBuilder = new Kysely<DB>({
@@ -23,10 +24,10 @@ const queryBuilder = new Kysely<DB>({
   },
 })
 
-const dbAtom = atom(async _ => await Database.load('sqlite:inspector.db'))
+const dbAtom = atom(async () => await Database.load('sqlite:inspector.db'))
 const ROWS_CHUNK_SIZE = 100
 
-export type RecordRow = Selectable<Records> & { message: string | null }
+export type RecordRow = Selectable<Records> & { message?: string }
 
 interface RowsCursor {
   tsMs: number
@@ -36,23 +37,23 @@ interface RowsCursor {
 interface RowsPage {
   rows: RecordRow[]
   hasMore: boolean
-  nextCursor: RowsCursor | null
+  nextCursor?: RowsCursor
 }
 
 interface RowsState {
   rows: RecordRow[]
   hasMore: boolean
   isLoading: boolean
-  nextCursor: RowsCursor | null
+  nextCursor?: RowsCursor
   pendingNewRows: number
 }
 
 const initialRowsState: RowsState = {
-  rows: [],
   hasMore: true,
   isLoading: false,
-  nextCursor: null,
+  nextCursor: undefined,
   pendingNewRows: 0,
+  rows: [],
 }
 
 export const rowsStateAtom = atom(initialRowsState)
@@ -63,7 +64,7 @@ export const pendingNewRowsAtom = focusAtom(rowsStateAtom, optic =>
 
 const getRowsPage = async (
   db: Awaited<ReturnType<typeof Database.load>>,
-  cursor: RowsCursor | null,
+  cursor?: RowsCursor,
 ): Promise<RowsPage> => {
   let stmtBuilder = queryBuilder
     .selectFrom('records')
@@ -87,12 +88,12 @@ const getRowsPage = async (
   const fetched: RecordRow[] = await db.select(stmt.sql, [...stmt.parameters])
   const hasMore = fetched.length > ROWS_CHUNK_SIZE
   const rows = hasMore ? fetched.slice(0, ROWS_CHUNK_SIZE) : fetched
-  const tail = rows.length > 0 ? rows[rows.length - 1] : null
+  const tail = rows.length > 0 ? rows[rows.length - 1] : undefined
 
   return {
-    rows,
     hasMore,
-    nextCursor: tail ? { tsMs: tail.ts_ms, id: tail.id } : null,
+    nextCursor: tail ? { id: tail.id, tsMs: tail.ts_ms } : undefined,
+    rows,
   }
 }
 
@@ -118,14 +119,14 @@ const applyPage = (
   page: RowsPage,
   mode: RowsUpdateMode,
 ): RowsState => ({
-  rows:
-    mode === 'replace'
-      ? page.rows
-      : dedupeRowsById([...state.rows, ...page.rows]),
   hasMore: page.hasMore,
   isLoading: false,
   nextCursor: page.nextCursor,
   pendingNewRows: mode === 'replace' ? 0 : state.pendingNewRows,
+  rows:
+    mode === 'replace'
+      ? page.rows
+      : dedupeRowsById([...state.rows, ...page.rows]),
 })
 
 const updateRowsState = async (
@@ -144,13 +145,13 @@ const updateRowsState = async (
   const db = await get(dbAtom)
   set(rowsStateAtom, { ...state, isLoading: true })
 
-  const cursor = mode === 'replace' ? null : state.nextCursor
+  const cursor = mode === 'replace' ? undefined : state.nextCursor
   const page = await getRowsPage(db, cursor)
   set(rowsStateAtom, applyPage(state, page, mode))
 }
 
 export const refreshRowsAtom = atom(
-  null,
+  undefined,
   useMock
     ? () => {}
     : async (get, set) => {
@@ -164,7 +165,7 @@ export const refreshRowsAtom = atom(
 )
 
 export const loadMoreRowsAtom = atom(
-  null,
+  undefined,
   useMock
     ? () => {}
     : async (get, set) => {

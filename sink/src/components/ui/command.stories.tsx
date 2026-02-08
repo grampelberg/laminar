@@ -15,12 +15,13 @@ import {
  * Fast, composable, unstyled command menu for React.
  */
 const meta = {
-  title: 'ui/Command',
-  component: Command,
-  tags: ['autodocs'],
   argTypes: {},
   args: {
     className: 'rounded-lg w-96 border shadow-md',
+  },
+  component: Command,
+  parameters: {
+    layout: 'centered',
   },
   render: args => (
     <Command {...args}>
@@ -41,9 +42,8 @@ const meta = {
       </CommandList>
     </Command>
   ),
-  parameters: {
-    layout: 'centered',
-  },
+  tags: ['autodocs'],
+  title: 'ui/Command',
 } satisfies Meta<typeof Command>
 
 export default meta
@@ -57,7 +57,6 @@ export const Default: Story = {}
 
 export const TypingInCombobox: Story = {
   name: 'when typing into the combobox, should filter results',
-  tags: ['!dev', '!autodocs'],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const input = canvas.getByRole('combobox')
@@ -80,4 +79,5 @@ export const TypingInCombobox: Story = {
     expect(canvas.queryAllByRole('option', { hidden: false })).toHaveLength(0)
     expect(canvas.getByText(/no results/i)).toBeVisible()
   },
+  tags: ['!dev', '!autodocs'],
 }

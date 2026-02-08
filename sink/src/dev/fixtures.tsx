@@ -1,16 +1,7 @@
-import {
-  type Getter,
-  type Setter,
-  useAtom,
-  useAtomValue,
-  useSetAtom,
-  type WritableAtom,
-} from 'jotai'
+import { type Atom, type Getter, type Setter, useAtom, useSetAtom } from 'jotai'
+import { useAtomsSnapshot } from 'jotai-devtools'
 import { atomWithStorage } from 'jotai/utils'
-import { useAtomsSnapshot, useGotoAtomsSnapshot } from 'jotai-devtools'
 import { CheckIcon, CircleIcon, CircleOffIcon, CopyIcon } from 'lucide-react'
-import { err, ok, Result, type ResultAsync } from 'neverthrow'
-import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -19,6 +10,10 @@ import {
   CommandItem,
   CommandSeparator,
 } from '@/components/ui/command.tsx'
+
+const INDENT = 2
+
+type Snapshot = Map<Atom<unknown>, unknown>
 
 type ReadFn = (get: Getter) => unknown
 type WriteFn = (get: Getter, set: Setter, ...args: unknown[]) => unknown
@@ -53,9 +48,9 @@ export const toName = (path: string) => {
   return last ? last.replace(/\.ts$/, '') : path
 }
 
-export const currentFixtureAtom = atomWithStorage<string | null>(
+export const currentFixtureAtom = atomWithStorage<string | undefined>(
   'currentFixture',
-  null,
+  undefined,
 )
 currentFixtureAtom.debugPrivate = true
 
@@ -67,12 +62,47 @@ const resolveExportValue = async (value: unknown) => {
   return await Promise.race([
     value.then(
       resolved => ({ kind: 'value', value: resolved }) as const,
-      error => ({ kind: 'rejected', error }) as const,
+      error => ({ error, kind: 'rejected' }) as const,
     ),
     new Promise<{ kind: 'pending' }>(resolve => {
-      setTimeout(() => resolve({ kind: 'pending' }), 0)
+      globalThis.setTimeout(() => resolve({ kind: 'pending' }), 0)
     }),
   ])
+}
+
+const buildExport = async (snapshot: Snapshot) => {
+  const values: Fixture = {}
+  const pending: string[] = []
+
+  for (const [key, value] of snapshot) {
+    if (!key.debugLabel) {
+      continue
+    }
+
+    const resolved = await resolveExportValue(value)
+
+    switch (resolved.kind) {
+      case 'value': {
+        values[key.debugLabel] = { value: resolved.value }
+        continue
+      }
+      case 'pending': {
+        pending.push(key.debugLabel)
+        continue
+      }
+      case 'rejected': {
+        globalThis.console.warn(
+          `Async atom was rejected, skipping: ${key.debugLabel}`,
+          resolved.error,
+        )
+      }
+    }
+  }
+
+  return {
+    pending,
+    values,
+  }
 }
 
 export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
@@ -81,46 +111,23 @@ export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
   const snapshot = useAtomsSnapshot()
 
   const disableFixtureOverrides = () => {
-    setCurrent(null)
+    setCurrent(undefined)
     toast.success('Fixture overrides disabled')
     onDone?.()
   }
 
   const exportFixture = async () => {
-    const values: Fixture = {}
-    const pendingLabels: string[] = []
+    const { pending, values } = await buildExport(snapshot.values)
 
-    for (const [key, value] of snapshot.values) {
-      if (!key.debugLabel) {
-        continue
-      }
-
-      const resolved = await resolveExportValue(value)
-
-      switch (resolved.kind) {
-        case 'value':
-          values[key.debugLabel] = { value: resolved.value }
-          continue
-        case 'pending':
-          pendingLabels.push(key.debugLabel)
-          continue
-        case 'rejected':
-          console.warn(
-            `Async atom was rejected, skipping: ${key.debugLabel}`,
-            resolved.error,
-          )
-      }
-    }
-
-    await navigator.clipboard.writeText(
-      `export default ${JSON.stringify(values, null, 2)}`,
+    await globalThis.navigator.clipboard.writeText(
+      `export default ${JSON.stringify(values, undefined, INDENT)}`,
     )
 
     toast.success('Fixture copied to clipboard')
 
-    if (pendingLabels.length > 0) {
+    if (pending.length > 0) {
       toast.warning(
-        `Skipped pending atoms while exporting: ${pendingLabels.join(', ')}`,
+        `Skipped pending atoms while exporting: ${pending.join(', ')}`,
       )
     }
   }
@@ -132,7 +139,10 @@ export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
           onSelect={() =>
             void exportFixture()
               .catch(error => {
-                console.warn('Failed to copy fixture to clipboard', error)
+                globalThis.console.warn(
+                  'Failed to copy fixture to clipboard',
+                  error,
+                )
                 toast.error('Fixture export failed', {
                   description: 'Check the console for more details',
                 })

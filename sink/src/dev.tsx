@@ -11,8 +11,8 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command.tsx'
-import { FixtureRuntime } from '@/dev/fixtures/runtime.tsx'
 import { FixturesCommand } from '@/dev/fixtures.tsx'
+import { FixtureRuntime } from '@/dev/fixtures/runtime.tsx'
 
 export const DevCommands = () => {
   const [open, setOpen] = useState(false)

@@ -2,8 +2,21 @@ export default {
   addressAtom: {
     value: 'default address',
   },
+  isNearTopAtom: {
+    value: true,
+  },
+  pendingNewRowsAtom: {
+    value: 0,
+  },
   rowsStateAtom: {
     value: {
+      hasMore: true,
+      isLoading: false,
+      nextCursor: {
+        tsMs: 1770509529853,
+        id: 11125,
+      },
+      pendingNewRows: 0,
       rows: [
         {
           message:
@@ -2109,19 +2122,6 @@ export default {
             '{"worker":0,"message":"skittishly scandalously barbarously indiscreetly beaming quetzal"}',
         },
       ],
-      hasMore: true,
-      isLoading: false,
-      nextCursor: {
-        tsMs: 1770509529853,
-        id: 11125,
-      },
-      pendingNewRows: 0,
     },
-  },
-  isNearTopAtom: {
-    value: true,
-  },
-  pendingNewRowsAtom: {
-    value: 0,
   },
 }

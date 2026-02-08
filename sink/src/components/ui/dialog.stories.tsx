@@ -17,10 +17,11 @@ import {
  * rendering the content underneath inert.
  */
 const meta = {
-  title: 'ui/Dialog',
-  component: Dialog,
-  tags: ['autodocs'],
   argTypes: {},
+  component: Dialog,
+  parameters: {
+    layout: 'centered',
+  },
   render: args => (
     <Dialog {...args}>
       <DialogTrigger>Open</DialogTrigger>
@@ -34,16 +35,15 @@ const meta = {
         </DialogHeader>
         <DialogFooter className="gap-4">
           <DialogClose className="hover:underline">Cancel</DialogClose>
-          <DialogClose className="bg-primary text-primary-foreground rounded px-4 py-2">
+          <DialogClose className="rounded bg-primary px-4 py-2 text-primary-foreground">
             Continue
           </DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   ),
-  parameters: {
-    layout: 'centered',
-  },
+  tags: ['autodocs'],
+  title: 'ui/Dialog',
 } satisfies Meta<typeof Dialog>
 
 export default meta
@@ -57,7 +57,6 @@ export const Default: Story = {}
 
 export const ShouldOpenCloseWithContinue: Story = {
   name: 'when clicking Continue button, should close the dialog',
-  tags: ['!dev', '!autodocs'],
   play: async ({ canvasElement, step }) => {
     const canvasBody = within(canvasElement.ownerDocument.body)
 
@@ -80,11 +79,11 @@ export const ShouldOpenCloseWithContinue: Story = {
       )
     })
   },
+  tags: ['!dev', '!autodocs'],
 }
 
 export const ShouldOpenCloseWithCancel: Story = {
   name: 'when clicking Cancel button, should close the dialog',
-  tags: ['!dev', '!autodocs'],
   play: async ({ canvasElement, step }) => {
     const canvasBody = within(canvasElement.ownerDocument.body)
 
@@ -107,11 +106,11 @@ export const ShouldOpenCloseWithCancel: Story = {
       )
     })
   },
+  tags: ['!dev', '!autodocs'],
 }
 
 export const ShouldOpenCloseCross: Story = {
   name: 'when clicking Close icon, should close the dialog',
-  tags: ['!dev', '!autodocs'],
   play: async ({ canvasElement, step }) => {
     const canvasBody = within(canvasElement.ownerDocument.body)
 
@@ -134,4 +133,5 @@ export const ShouldOpenCloseCross: Story = {
       )
     })
   },
+  tags: ['!dev', '!autodocs'],
 }

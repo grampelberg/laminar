@@ -7,10 +7,23 @@ import { Button } from '@/components/ui/button'
  * Displays a button or a component that looks like a button.
  */
 const meta: Meta<typeof Button> = {
-  title: 'ui/Button',
-  component: Button,
-  tags: ['autodocs'],
   argTypes: {
+    asChild: {
+      table: {
+        disable: true,
+      },
+    },
+    children: {
+      control: 'text',
+    },
+    disabled: {
+      control: 'boolean',
+    },
+    size: {
+      control: 'select',
+      if: { arg: 'variant', neq: 'link' },
+      options: ['default', 'sm', 'lg', 'icon'],
+    },
     variant: {
       control: 'select',
       options: [
@@ -22,32 +35,19 @@ const meta: Meta<typeof Button> = {
         'link',
       ],
     },
-    size: {
-      control: 'select',
-      options: ['default', 'sm', 'lg', 'icon'],
-      if: { arg: 'variant', neq: 'link' },
-    },
-    children: {
-      control: 'text',
-    },
-    disabled: {
-      control: 'boolean',
-    },
-    asChild: {
-      table: {
-        disable: true,
-      },
-    },
   },
+  args: {
+    children: 'Button',
+    disabled: false,
+    size: 'default',
+    variant: 'default',
+  },
+  component: Button,
   parameters: {
     layout: 'centered',
   },
-  args: {
-    variant: 'default',
-    size: 'default',
-    children: 'Button',
-    disabled: false,
-  },
+  tags: ['autodocs'],
+  title: 'ui/Button',
 } satisfies Meta<typeof Button>
 
 export default meta
@@ -114,16 +114,16 @@ export const Link: Story = {
  * loading indicator, such as a spinner, to signify an in-progress action.
  */
 export const Loading: Story = {
+  args: {
+    ...Outline.args,
+    disabled: true,
+  },
   render: args => (
     <Button {...args}>
       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       Button
     </Button>
   ),
-  args: {
-    ...Outline.args,
-    disabled: true,
-  },
 }
 
 /**
@@ -131,14 +131,14 @@ export const Loading: Story = {
  * providing additional context for the action.
  */
 export const WithIcon: Story = {
+  args: {
+    ...Secondary.args,
+  },
   render: args => (
     <Button {...args}>
       <Mail className="mr-2 h-4 w-4" /> Login with Email Button
     </Button>
   ),
-  args: {
-    ...Secondary.args,
-  },
 }
 
 /**
@@ -167,9 +167,9 @@ export const Large: Story = {
 export const Icon: Story = {
   args: {
     ...Secondary.args,
+    children: <Mail />,
     size: 'icon',
     title: 'Mail',
-    children: <Mail />,
   },
 }
 
@@ -178,10 +178,10 @@ export const Icon: Story = {
  */
 export const IconSmall: Story = {
   args: {
-    variant: 'secondary',
+    children: <Mail />,
     size: 'icon-sm',
     title: 'Mail',
-    children: <Mail />,
+    variant: 'secondary',
   },
 }
 
@@ -190,10 +190,10 @@ export const IconSmall: Story = {
  */
 export const IconLarge: Story = {
   args: {
-    variant: 'secondary',
+    children: <Mail />,
     size: 'icon-lg',
     title: 'Mail',
-    children: <Mail />,
+    variant: 'secondary',
   },
 }
 

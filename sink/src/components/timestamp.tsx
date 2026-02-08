@@ -11,13 +11,13 @@ const fullFormatter = new Intl.DateTimeFormat(undefined, {
   timeStyle: 'medium',
 })
 
-export function Timestamp({
+export const Timestamp = ({
   ms,
   relative = false,
 }: {
   ms: number
   relative?: boolean
-}) {
+}) => {
   if (!Number.isFinite(ms)) {
     return <span>-</span>
   }

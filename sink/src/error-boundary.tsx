@@ -1,10 +1,10 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-type Props = {
+interface Props {
   children: ReactNode
 }
 
-type State = {
+interface State {
   error?: unknown
   errorInfo?: ErrorInfo
 }
@@ -17,7 +17,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
-    console.error('ErrorBoundary caught error', error, info)
+    globalThis.console.error('ErrorBoundary caught error', error, info)
     this.setState({ errorInfo: info })
   }
 
@@ -34,22 +34,22 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <main className="w-full p-6">
           <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-            <h1 className="text-red-900 text-lg font-semibold">
+            <h1 className="text-lg font-semibold text-red-900">
               Something went wrong
             </h1>
             <div className="mt-2 text-red-800">
               {errorMessage ? `${errorName}: ${errorMessage}` : fallbackMessage}
             </div>
-            {errorStack ? (
-              <pre className="mt-3 max-h-[50vh] overflow-auto whitespace-pre-wrap rounded bg-white/70 p-3 text-xs text-red-900">
+            {errorStack && (
+              <pre className="mt-3 max-h-[50vh] overflow-auto rounded bg-white/70 p-3 text-xs whitespace-pre-wrap text-red-900">
                 {errorStack}
               </pre>
-            ) : null}
-            {this.state.errorInfo?.componentStack ? (
-              <pre className="mt-3 max-h-[40vh] overflow-auto whitespace-pre-wrap rounded bg-white/70 p-3 text-xs text-red-900">
+            )}
+            {this.state.errorInfo?.componentStack && (
+              <pre className="mt-3 max-h-[40vh] overflow-auto rounded bg-white/70 p-3 text-xs whitespace-pre-wrap text-red-900">
                 {this.state.errorInfo.componentStack}
               </pre>
-            ) : null}
+            )}
           </div>
         </main>
       )

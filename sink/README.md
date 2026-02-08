@@ -8,6 +8,12 @@
 - [Tauri](https://v2.tauri.app/start/prerequisites/) - Get all the prerequisites
   installed.
 
+### Linting/Formatting
+
+We use [Oxlint](https://oxlint.dev) for linting and formatting. There are
+scripts to run it, but it is worth
+[configuring your editor](https://oxc.rs/docs/guide/usage/linter/editors.html).
+
 ### Fixtures
 
 A fixture allows you to set any (or all) of the data in the application to a
@@ -20,7 +26,7 @@ Alternatively, you can author your own fixture. It needs to contain:
 ```ts
 export default {
   countAtom: { value: 0 },
-};
+}
 ```
 
 Where `countAtom` is the name of the atom you'd like to have set (or the
@@ -31,11 +37,11 @@ nothing.
 You can also have fixtures that run functions. For example:
 
 ```ts
-import { countAtom } from "./stuff.tsx";
+import { countAtom } from './stuff.tsx'
 
 export default {
-  derivedAtom = { read: (get) => get(countAtom) + 100 },
-};
+  derivedAtom = { read: get => get(countAtom) + 100 },
+}
 ```
 
 This has the same parameters as atoms (`{ read: Getter, write: Setter }`).
@@ -85,3 +91,22 @@ bun tauri dev
 ## Features
 
 - clean: remove all the application files on startup.
+
+## Narrative
+
+- I can't see the logs
+  - My font is too small
+  - It is going by too fast
+- The volume is too high
+  - Level is close to the best tool for filtering.
+  - Using grep to filter doesn't let me look back over previous logs.
+- I can't see multiple processes at once
+  - I need to open multiple ssh sessions/terminals to watch things happen.
+  - It is awkward to have a client and server in the same log stream.
+- I hate having to wait for logs to show up in online tools.
+  - Is it because my stuff is broken or their infrastructure is just slow?
+- I don't want to figure out how to get logs your specific way.
+  - How do I search again?
+  - How do I get logs off the mobile device?
+  - Where are they in your platform?
+- I don't want to operate and maintain a bunch of expensive o11y infrastructure.

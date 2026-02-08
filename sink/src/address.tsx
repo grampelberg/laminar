@@ -9,38 +9,42 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover.tsx'
+import { log } from '@/log.ts'
 import { useMock } from '@/mock.ts'
+
+const logger = log(import.meta.url)
 
 const addressAtom = atom(
   useMock ? async () => '' : async () => await invoke<string>('get_address'),
 )
+const COPY_FEEDBACK_MS = 1000
 
 export const AddressButton = () => {
   const address = useAtomValue(addressAtom)
   const [copiedOpen, setCopiedOpen] = useState(false)
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copiedTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(
+    null,
+  )
 
   useEffect(
     () => () => {
       if (copiedTimer.current) {
-        clearTimeout(copiedTimer.current)
+        globalThis.clearTimeout(copiedTimer.current)
       }
     },
     [],
   )
 
   const handleCopyAddress = () => {
-    console.log(address)
-
-    void navigator.clipboard.writeText(address)
+    void globalThis.navigator.clipboard.writeText(address)
     setCopiedOpen(true)
 
     if (copiedTimer.current) {
-      clearTimeout(copiedTimer.current)
+      globalThis.clearTimeout(copiedTimer.current)
     }
-    copiedTimer.current = setTimeout(() => {
+    copiedTimer.current = globalThis.setTimeout(() => {
       setCopiedOpen(false)
-    }, 1000)
+    }, COPY_FEEDBACK_MS)
   }
 
   return (

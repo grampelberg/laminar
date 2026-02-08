@@ -6,9 +6,6 @@ import { Label } from '@/components/ui/label'
  * Renders an accessible label associated with controls.
  */
 const meta = {
-  title: 'ui/Label',
-  component: Label,
-  tags: ['autodocs'],
   argTypes: {
     children: {
       control: { type: 'text' },
@@ -18,6 +15,9 @@ const meta = {
     children: 'Your email address',
     htmlFor: 'email',
   },
+  component: Label,
+  tags: ['autodocs'],
+  title: 'ui/Label',
 } satisfies Meta<typeof Label>
 
 export default meta

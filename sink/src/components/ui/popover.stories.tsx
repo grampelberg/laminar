@@ -11,20 +11,20 @@ import {
  * Displays rich content in a portal, triggered by a button.
  */
 const meta = {
-  title: 'ui/Popover',
-  component: Popover,
-  tags: ['autodocs'],
   argTypes: {},
-
+  component: Popover,
+  parameters: {
+    layout: 'centered',
+  },
   render: args => (
     <Popover {...args}>
       <PopoverTrigger>Open</PopoverTrigger>
       <PopoverContent>Place content for the popover here.</PopoverContent>
     </Popover>
   ),
-  parameters: {
-    layout: 'centered',
-  },
+
+  tags: ['autodocs'],
+  title: 'ui/Popover',
 } satisfies Meta<typeof Popover>
 
 export default meta
@@ -38,7 +38,6 @@ export const Default: Story = {}
 
 export const ShouldOpenClose: Story = {
   name: 'when clicking the trigger, should open and close the popover',
-  tags: ['!dev', '!autodocs'],
   play: async ({ canvasElement, step }) => {
     const canvasBody = within(canvasElement.ownerDocument.body)
 
@@ -59,4 +58,5 @@ export const ShouldOpenClose: Story = {
       )
     })
   },
+  tags: ['!dev', '!autodocs'],
 }

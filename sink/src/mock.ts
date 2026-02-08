@@ -1,1 +1,1 @@
-export const useMock = !window.isTauri
+export const useMock = !globalThis.window.isTauri

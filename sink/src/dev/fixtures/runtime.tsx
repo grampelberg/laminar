@@ -1,11 +1,11 @@
 import {
   type Getter,
   type Setter,
-  useAtomValue,
   type WritableAtom,
+  useAtomValue,
 } from 'jotai'
 import { useAtomsSnapshot, useGotoAtomsSnapshot } from 'jotai-devtools'
-import { err, ok, Result } from 'neverthrow'
+import { Result, err, ok } from 'neverthrow'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
@@ -39,7 +39,7 @@ const loadFixture = async (
 
   const parsedFixture = fixtureSchema.safeParse(fixture)
   if (!parsedFixture.success) {
-    return err({ kind: 'parse_failed', error: parsedFixture.error })
+    return err({ error: parsedFixture.error, kind: 'parse_failed' })
   }
 
   return ok(parsedFixture.data)
@@ -111,8 +111,8 @@ const buildNext = (snapshot: AtomSnapshot, fixture: Fixture) => {
 
   return {
     next: {
-      values,
       dependents: new Map(snapshot.dependents),
+      values,
     },
     notMounted,
   }
@@ -153,7 +153,7 @@ const ApplySelectedFixture = ({ path }: { path: string }) => {
                 return { kind: 'invalidated' }
               }
 
-              return { kind: 'set_error', error }
+              return { error, kind: 'set_error' }
             },
           )()
         })
@@ -163,20 +163,23 @@ const ApplySelectedFixture = ({ path }: { path: string }) => {
           },
           error => {
             switch (error.kind) {
-              case 'not_found':
+              case 'not_found': {
                 toast.error(`Fixture not found: ${error.path}`)
                 break
-              case 'parse_failed':
+              }
+              case 'parse_failed': {
                 toast.error('Unable to parse fixture', {
                   description: 'Check the console for more details',
                 })
                 break
-              case 'set_error':
+              }
+              case 'set_error': {
                 toast.error('Unhandled error applying fixture', {
                   description: 'Check the console for more details',
                 })
                 console.error(error.error)
                 break
+              }
             }
           },
         )
