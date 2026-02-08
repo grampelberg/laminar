@@ -1,1 +1,1 @@
-export const useMock = import.meta.env.VITE_MOCK !== undefined
+export const useMock = !window.isTauri

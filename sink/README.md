@@ -57,7 +57,7 @@ bun run storybook
 When adding new shadcn components, you can also add stories for them with:
 
 ```bash
-VITE_MOCK=true bunx shadcn add @storybook/<component>-story
+bunx shadcn add @storybook/<component>-story
 ```
 
 See the [registry](https://registry.lloydrichards.dev) for what's available.
@@ -69,15 +69,12 @@ Everything in the playground directory is meant to be for internal use.
 To use the design playground, run:
 
 ```bash
-VITE_MOCK=true bun run dev
+bun run dev
 ```
 
 You can then reach it by visiting `/design`. Note that there will be javascript
 errors for most normal routes as they're going to be expecting the tauri
 backend.
-
-Note: you can't run this and tauri at the same time as they use a single vite
-server.
 
 ### Run
 
