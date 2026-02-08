@@ -10,6 +10,7 @@ use futures::{
 use inspector::{Config, InspectorLayer};
 use petname::petname;
 use tokio::time;
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, prelude::*};
 
 #[derive(Parser, Debug)]
@@ -19,7 +20,7 @@ struct Args {
     inspector_config: Option<String>,
     #[arg(long, default_value_t = 10, value_name = "LOGS_PER_SECOND")]
     rate: u64,
-    #[arg(long, default_value_t = 3, value_name = "WORDS")]
+    #[arg(long, default_value_t = 25, value_name = "WORDS")]
     max_words: u8,
     #[arg(long, default_value_t = 1, value_name = "N")]
     threads: u16,
@@ -51,8 +52,10 @@ async fn main() -> Result<()> {
 
     let (layer, writer) =
         InspectorLayer::builder().maybe_config(config).build()?;
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
     let fmt_layer = tracing_subscriber::fmt::layer().pretty();
 
     tracing_subscriber::registry()
@@ -93,7 +96,23 @@ async fn main() -> Result<()> {
                 let message = petname(word_count, " ")
                     .unwrap_or_else(|| "petname exhausted words".to_string());
 
-                tracing::info!(worker, message);
+                match rand::random_range(0..5) {
+                    0 => {
+                        tracing::trace!(target: "loadgen::roach", worker, message)
+                    }
+                    1 => {
+                        tracing::debug!(target: "loadgen::ruggedly::admirable::yellowtail", worker, message)
+                    }
+                    2 => {
+                        tracing::info!(target: "loadgen::informally::importantly", worker, message)
+                    }
+                    3 => {
+                        tracing::warn!(target: "loadgen::immutably::amorally::southerly::unarguably::partially", worker, message)
+                    }
+                    _ => {
+                        tracing::error!(target: "loadgen::unpleasantly::languidly::fortuitously::scandalously::reticently::mindlessly::insecurely", worker, message)
+                    }
+                }
             }
         });
         handles.push(handle);
