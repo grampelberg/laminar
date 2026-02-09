@@ -1,4 +1,4 @@
-import { BugIcon, FlaskConicalIcon } from 'lucide-react'
+import { BugIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
@@ -6,11 +6,10 @@ import { Button } from '@/components/ui/button.tsx'
 import {
   CommandDialog,
   CommandEmpty,
-  CommandGroup,
   CommandInput,
-  CommandItem,
   CommandList,
 } from '@/components/ui/command.tsx'
+import { DebugCommand } from '@/dev/debug.tsx'
 import { FixturesCommand } from '@/dev/fixtures.tsx'
 import { FixtureRuntime } from '@/dev/fixtures/runtime.tsx'
 
@@ -47,12 +46,7 @@ export const DevCommands = () => {
         <CommandList>
           <CommandEmpty>No dev commands found.</CommandEmpty>
           <FixturesCommand onDone={() => setOpen(false)} />
-          <CommandGroup heading="Development">
-            <CommandItem onSelect={() => setOpen(false)}>
-              <FlaskConicalIcon />
-              Close command palette
-            </CommandItem>
-          </CommandGroup>
+          <DebugCommand onDone={() => setOpen(false)} />
         </CommandList>
       </CommandDialog>
     </>

@@ -10,6 +10,8 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
+import { log } from '@/log.ts'
+
 import type { DerivedItem, Fixture, PrimitiveItem } from '../fixtures.tsx'
 import {
   allFixtures,
@@ -17,6 +19,8 @@ import {
   fixtureSchema,
   toName,
 } from '../fixtures.tsx'
+
+const logger = log(import.meta.url)
 
 type AtomSnapshot = ReturnType<typeof useAtomsSnapshot>
 type AtomConfig = WritableAtom<unknown, unknown[], unknown> & {

@@ -21,7 +21,7 @@
     "id-length": [
       "error",
       {
-        "exceptions": ["x", "y", "i", "j"],
+        "exceptions": ["x", "y", "i", "j", "_"],
         "min": 2
       }
     ],
@@ -37,7 +37,8 @@
         "varsIgnorePattern": "^_|logger"
       }
     ],
-    "sort-imports": "off"
+    "sort-imports": "off",
+    "sort-keys": "off"
   },
   "settings": {
     "jsx-a11y": {

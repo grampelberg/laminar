@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/tooltip'
 
 const fullFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
   timeStyle: 'medium',
 })
 

@@ -10,7 +10,7 @@ const App = () => (
   <TooltipProvider>
     <main className="flex h-screen flex-col">
       <Switch>
-        <Route component={DesignPlayground} path="/design" />
+        <Route component={DesignPlayground} path="/design" nest />
         <Route component={Native} />
       </Switch>
       <DevCommands />

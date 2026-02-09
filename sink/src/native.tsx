@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { AddressButton } from '@/address.tsx'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler.tsx'
 import { useRowsUpdates } from '@/db/updates.tsx'
-import { RecordsTable } from '@/records.tsx'
+import { Records } from '@/records.tsx'
 
 export const Native = () => {
   useRowsUpdates()
@@ -21,7 +21,7 @@ export const Native = () => {
       </div>
       <div className="container mx-auto py-8">
         <Suspense fallback={<span>loading...</span>}>
-          <RecordsTable />
+          <Records />
         </Suspense>
       </div>
     </div>

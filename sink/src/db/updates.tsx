@@ -14,6 +14,9 @@ export const useRowsUpdates = () => {
     if (stop) {
       return
     }
+
+    void refreshRows()
+
     ;(async () => {
       if (useMock) {
         return
