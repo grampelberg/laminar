@@ -6,7 +6,18 @@ import {
   type Table as TTable,
   type RowData,
 } from '@tanstack/react-table'
-import { useMemo, type CSSProperties } from 'react'
+import {
+  type ReactVirtualizerOptions,
+  type Virtualizer,
+  useVirtualizer,
+} from '@tanstack/react-virtual'
+import {
+  type CSSProperties,
+  type ReactElement,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react'
 
 import {
   Table,
@@ -16,178 +27,227 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table.tsx'
-import { cn, memo } from '@/lib/utils.ts'
-import { log } from '@/log.ts'
+import { cn, px, memo } from '@/lib/utils.ts'
 
-const logger = log('data-table')
+import { ScrollArea } from './scroll-area'
 
-type Node<Data extends RowData, Value = unknown> =
-  | THead<Data, Value>
-  | TCell<Data, Value>
+const DEFAULT_ROW_HEIGHT = 40
 
 interface ColumnMeta {
   cellClassName?: string
   headerClassName?: string
 }
 
-const isHeaderNode = <Data extends RowData, Value = unknown>(
-  node: Node<Data>,
-): node is THead<Data, Value> => 'isPlaceholder' in node
-
-const getStyle = <Data extends RowData>(node: Node<Data>) => {
-  const meta = (node.column.columnDef.meta || {}) as ColumnMeta
-
-  return {
-    className: isHeaderNode(node) ? meta.headerClassName : meta.cellClassName,
-    style: {
-      width: `var(--col-${node.column.id}-size)`,
-    },
-  }
+export interface Viewport {
+  first: number
+  last: number
 }
 
-const isLast = <Data extends RowData>(node: Node<Data>): boolean =>
-  node.getContext().table.getVisibleLeafColumns().at(-1)?.id === node.column.id
+type RowPropsFn<Data extends RowData> = (
+  row: TRow<Data>,
+) => React.ComponentProps<'tr'>
 
-const Cell = <Data extends RowData>({
-  node,
-  children,
-  ...props
-}: {
-  node: Node<Data>
-  children: React.ReactNode
-} & React.ComponentProps<'td'>) => {
-  const Component = isHeaderNode(node) ? UITableHead : UITableCell
-  const { className, style } = getStyle(node)
-
-  return (
-    <Component
-      {...props}
-      style={style}
-      className={cn(className, props.className)}
-    >
-      {children}
-    </Component>
-  )
-}
-
-const HeadCell = <Data extends RowData, Value = unknown>({
+const HCell = <Data extends RowData, Value = unknown>({
   node,
 }: {
   node: THead<Data, Value>
-}) => (
-  <Cell node={node} className="group relative" data-col-id={node.column.id}>
-    {!node.isPlaceholder &&
-      flexRender(node.column.columnDef.header, node.getContext())}
-    {node.column.getCanResize() && !isLast(node) && (
-      <div
-        onMouseDown={node.getResizeHandler()}
-        onTouchStart={node.getResizeHandler()}
-        className={cn(
-          'absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none select-none group-hover:bg-foreground/40 active:bg-foreground/40',
-          node.column.getIsResizing() && 'isResizing',
-        )}
-      />
-    )}
-  </Cell>
-)
+}) => {
+  const meta = (node.column.columnDef.meta || {}) as ColumnMeta
 
-const BodyCell = <Data extends RowData, Value = unknown>({
+  return (
+    <UITableHead
+      className={cn(
+        'group relative [&:last-child>div]:hidden',
+        meta.headerClassName,
+      )}
+      style={{
+        width: `var(--col-${node.column.id}-size)`,
+      }}
+    >
+      {!node.isPlaceholder &&
+        flexRender(node.column.columnDef.header, node.getContext())}
+      {node.column.getCanResize() && (
+        <div
+          onMouseDown={node.getResizeHandler()}
+          onTouchStart={node.getResizeHandler()}
+          className={cn(
+            'absolute top-0 right-0 h-full w-1.5 cursor-col-resize',
+            'touch-none select-none',
+            'group-hover:bg-foreground/40 active:bg-foreground/40',
+          )}
+        />
+      )}
+    </UITableHead>
+  )
+}
+
+const BCell = <Data extends RowData, Value = unknown>({
   node,
 }: {
   node: TCell<Data, Value>
-}) => (
-  <Cell node={node}>
-    {flexRender(node.column.columnDef.cell, node.getContext())}
-  </Cell>
+}) => {
+  const meta = (node.column.columnDef.meta || {}) as ColumnMeta
+
+  return (
+    <UITableCell className={meta.cellClassName}>
+      {flexRender(node.column.columnDef.cell, node.getContext())}
+    </UITableCell>
+  )
+}
+
+const Empty = ({ colSpan }: { colSpan: number }) => (
+  <TableRow>
+    <UITableCell colSpan={colSpan} className="h-h-24 text-center">
+      No Results
+    </UITableCell>
+  </TableRow>
 )
 
-type BodyRowPropsFn<Data extends RowData> = (
-  row: TRow<Data>,
-) => React.ComponentProps<'tr'> | undefined
+interface BodyProps<Data extends RowData> {
+  rows: TRow<Data>[]
+  rowProps?: RowPropsFn<Data>
+  virtualizer: Virtualizer<HTMLDivElement, Element>
+}
 
-const Content = <Data extends RowData>({
-  table,
-  bodyRowProps,
-}: {
+const Body = <Data extends RowData>({
+  rows,
+  rowProps,
+  virtualizer,
+}: BodyProps<Data>) =>
+  virtualizer.getVirtualItems().map(item => {
+    const row = rows[item.index]
+
+    return (
+      <TableRow
+        key={row.id}
+        style={{
+          height: item.size,
+        }}
+        {...rowProps?.(row)}
+      >
+        {row.getVisibleCells().map(cell => (
+          <BCell key={cell.id} node={cell} />
+        ))}
+      </TableRow>
+    )
+  })
+
+const MemoBody = memo(
+  ({ viewport: _viewport, ...props }) => <Body {...props} />,
+  (prev, next) => prev.viewport === next.viewport && prev.rows === next.rows,
+) as <Data extends RowData>(
+  props: BodyProps<Data> & { viewport: string },
+) => ReactElement
+
+const getPosition = (
+  virtual: Virtualizer<HTMLDivElement, Element>,
+) => {
+  const items = virtual.getVirtualItems()
+  const first = items[0]?.index ?? 0
+  const last = items.at(-1)?.index ?? 0
+
+  return {
+    top: items[0]?.start ?? 0,
+    bottom: virtual.getTotalSize() - (items.at(-1)?.end ?? 0),
+    first,
+    last,
+    key: `${first}:${last}:${items.length}`,
+  }
+}
+
+export interface DataTableProps<Data extends RowData> {
   table: TTable<Data>
-  bodyRowProps?: BodyRowPropsFn<Data>
-}) => (
-  <>
-    <TableHeader className="sticky top-0 z-10 border-b border-border bg-card/50 backdrop-blur-md">
-      {table.getHeaderGroups().map(headerGroup => (
-        <TableRow key={headerGroup.id} className="hover:bg-transparent">
-          {headerGroup.headers.map(header => (
-            <HeadCell key={header.id} node={header} />
-          ))}
-        </TableRow>
-      ))}
-    </TableHeader>
-    <TableBody>
-      {table.getRowModel().rows.length > 0 ? (
-        table.getRowModel().rows.map(row => {
-          const rowProps = bodyRowProps?.(row)
-          return (
-            <TableRow key={row.id} {...rowProps}>
-              {row.getVisibleCells().map(cell => (
-                <BodyCell key={cell.id} node={cell} />
-              ))}
-            </TableRow>
-          )
-        })
-      ) : (
-        <TableRow>
-          <UITableCell
-            colSpan={table.getVisibleLeafColumns().length}
-            className="h-24 text-center"
-          >
-            No results.
-          </UITableCell>
-        </TableRow>
-      )}
-    </TableBody>
-  </>
-)
-
-const MemoContent = memo(
-  Content,
-  (prev, next) => prev.table.options.data === next.table.options.data,
-)
+  fullWidth?: boolean
+  rowProps?: RowPropsFn<Data>
+  virtualOpts?: Partial<ReactVirtualizerOptions<HTMLDivElement, Element>>
+  onScroll: (viewport: Viewport) => void
+}
 
 export const DataTable = <Data extends RowData>({
   table,
   fullWidth = false,
-  bodyRowProps,
-}: {
-  table: TTable<Data>
-  fullWidth?: boolean
-  bodyRowProps?: BodyRowPropsFn<Data>
-}) => {
-  const columnSizeVars = useMemo(
-    () =>
-      table.getFlatHeaders().reduce<Record<string, string>>((vars, header) => {
-        if (!isLast(header)) {
-          vars[`--col-${header.column.id}-size`] = `${header.getSize()}px`
+  rowProps,
+  virtualOpts,
+  onScroll,
+}: DataTableProps<Data>) => {
+  const ref = useRef<HTMLDivElement>(null)
+
+  const columnSizeVars = useMemo(() => {
+    const lastId = table.getVisibleLeafColumns().at(-1)?.id
+
+    return table
+      .getFlatHeaders()
+      .reduce<Record<string, string>>((vars, header) => {
+        if (header.column.id != lastId) {
+          vars[`--col-${header.column.id}-size`] = px(header.getSize())
         }
         return vars
-      }, {}) as CSSProperties,
-    [table.getState().columnSizing, table.getState().columnSizingInfo],
-  )
+      }, {}) as CSSProperties
+  }, [table.getState().columnSizing, table.getState().columnSizingInfo])
 
-  logger(table.options.data)
+  const { rows } = table.getRowModel()
+
+  const virt = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => ref.current,
+    estimateSize: () => DEFAULT_ROW_HEIGHT,
+    overscan: 10,
+    ...virtualOpts,
+  })
+
+  const { top, bottom, first, last, key } = getPosition(virt)
+
+  useEffect(() => {
+    onScroll({ first, last })
+  }, [onScroll, first, last])
+
+  const columnCount = table.getVisibleLeafColumns().length
 
   return (
-    <Table
-      className={cn('table-fixed', fullWidth && 'w-full')}
-      style={{
-        ...columnSizeVars,
-        ...(!fullWidth && { width: table.getTotalSize() }),
-      }}
-    >
-      {table.getState().columnSizingInfo.isResizingColumn ? (
-        <MemoContent table={table} bodyRowProps={bodyRowProps} />
-      ) : (
-        <Content table={table} bodyRowProps={bodyRowProps} />
-      )}
-    </Table>
+    <div className="min-h-0 flex-1">
+      <ScrollArea ref={ref}>
+        <Table
+          className={cn('table-fixed', fullWidth && 'w-full')}
+          style={{
+            ...columnSizeVars,
+            ...(!fullWidth && { width: table.getTotalSize() }),
+          }}
+        >
+          <TableHeader className="sticky top-0 z-10 border-b border-border bg-card/50 backdrop-blur-md">
+            {table.getHeaderGroups().map(headerGroup => (
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                {headerGroup.headers.map(header => (
+                  <HCell key={header.id} node={header} />
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {top > 0 && (
+              <tr>
+                <td colSpan={columnCount} style={{ height: top }} />
+              </tr>
+            )}
+            {rows.length ? (
+              <MemoBody
+                {...{
+                  rows,
+                  rowProps,
+                  virtualizer: virt,
+                  viewport: key,
+                }}
+              />
+            ) : (
+              <Empty colSpan={table.getVisibleLeafColumns().length} />
+            )}
+            {bottom > 0 && (
+              <tr>
+                <td colSpan={columnCount} style={{ height: bottom }} />
+              </tr>
+            )}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
   )
 }

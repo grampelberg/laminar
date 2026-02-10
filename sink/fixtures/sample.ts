@@ -2,12 +2,6 @@ export default {
   addressAtom: {
     value: 'default address',
   },
-  isNearTopAtom: {
-    value: true,
-  },
-  pendingNewRowsAtom: {
-    value: 0,
-  },
   rowsStateAtom: {
     value: {
       hasMore: true,
@@ -17,6 +11,7 @@ export default {
         id: 11125,
       },
       pendingNewRows: 0,
+      total: 143,
       rows: [
         {
           message:

@@ -6,14 +6,16 @@ import { cn } from '@/lib/utils'
 const ScrollArea = ({
   className,
   children,
+  ref,
   ...props
 }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) => (
   <ScrollAreaPrimitive.Root
     data-slot="scroll-area"
-    className={cn('relative', className)}
+    className={cn('size-full', className)}
     {...props}
   >
     <ScrollAreaPrimitive.Viewport
+      ref={ref}
       data-slot="scroll-area-viewport"
       className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
     >

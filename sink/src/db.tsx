@@ -2,6 +2,7 @@ import Database from '@tauri-apps/plugin-sql'
 import { type Getter, type Setter, atom } from 'jotai'
 import { focusAtom } from 'jotai-optics'
 import {
+  type CompiledQuery,
   DummyDriver,
   Kysely,
   type Selectable,
@@ -11,11 +12,14 @@ import {
   sql,
 } from 'kysely'
 
+import { log } from '@/log'
 import { useMock } from '@/mock'
 
 import type { DB, Records } from './types/db.ts'
 
-const queryBuilder = new Kysely<DB>({
+const logger = log(import.meta.url)
+
+export const queryBuilder = new Kysely<DB>({
   dialect: {
     createAdapter: () => new SqliteAdapter(),
     createDriver: () => new DummyDriver(),
@@ -29,6 +33,11 @@ const ROWS_CHUNK_SIZE = 100
 
 export type RecordRow = Selectable<Records> & { message?: string }
 
+export interface RecordFilter {
+  column: keyof RecordRow
+  value: unknown
+}
+
 interface RowsCursor {
   tsMs: number
   id: number
@@ -40,13 +49,12 @@ interface RowsPage {
   nextCursor?: RowsCursor
 }
 
-interface RowsState {
-  rows: RecordRow[]
-  hasMore: boolean
+type RowsState = RowsPage & {
   isLoading: boolean
-  nextCursor?: RowsCursor
   pendingNewRows: number
 }
+
+type RowsUpdateMode = 'replace' | 'append'
 
 const initialRowsState: RowsState = {
   hasMore: true,
@@ -57,18 +65,40 @@ const initialRowsState: RowsState = {
 }
 
 export const rowsStateAtom = atom(initialRowsState)
-export const isNearTopAtom = atom(true)
+export const totalRowsAtom = atom(0)
 export const pendingNewRowsAtom = focusAtom(rowsStateAtom, optic =>
   optic.prop('pendingNewRows'),
 )
+
+export const filtersAtom = atom<RecordFilter[]>([])
+
+export const positionAtom = atom({ top: true, bottom: false })
+
+const execute = async <Row,>(
+  db: Awaited<ReturnType<typeof Database.load>>,
+  query: CompiledQuery<unknown>,
+): Promise<Row[]> => await db.select<Row[]>(query.sql, [...query.parameters])
+
+const baseRecordsQuery = () =>
+  queryBuilder.selectFrom('records').where('kind', '=', 0)
+
+const getTotalRows = async (
+  db: Awaited<ReturnType<typeof Database.load>>,
+): Promise<number> => {
+  const totalQuery = baseRecordsQuery().select([
+    sql<number>`COUNT(*)`.as('count'),
+  ])
+  const [{ count }] = await execute<{ count: number }>(db, totalQuery.compile())
+  return count
+}
 
 const getRowsPage = async (
   db: Awaited<ReturnType<typeof Database.load>>,
   cursor?: RowsCursor,
 ): Promise<RowsPage> => {
-  let stmtBuilder = queryBuilder
-    .selectFrom('records')
-    .where('kind', '=', 0)
+  const base = baseRecordsQuery()
+
+  let rowQuery = base
     .orderBy('ts_ms', 'desc')
     .orderBy('id', 'desc')
     .select([sql<string>`json_extract(fields_json, '$.message')`.as('message')])
@@ -76,7 +106,7 @@ const getRowsPage = async (
     .limit(ROWS_CHUNK_SIZE + 1)
 
   if (cursor) {
-    stmtBuilder = stmtBuilder.where(eb =>
+    rowQuery = rowQuery.where(eb =>
       eb.or([
         eb('ts_ms', '<', cursor.tsMs),
         eb.and([eb('ts_ms', '=', cursor.tsMs), eb('id', '<', cursor.id)]),
@@ -84,15 +114,15 @@ const getRowsPage = async (
     )
   }
 
-  const stmt = stmtBuilder.compile()
-  const fetched: RecordRow[] = await db.select(stmt.sql, [...stmt.parameters])
+  const fetched = await execute<RecordRow>(db, rowQuery.compile())
+
   const hasMore = fetched.length > ROWS_CHUNK_SIZE
-  const rows = hasMore ? fetched.slice(0, ROWS_CHUNK_SIZE) : fetched
-  const tail = rows.length > 0 ? rows[rows.length - 1] : undefined
+  const rows = fetched.slice(0, ROWS_CHUNK_SIZE)
+  const tail = rows.at(-1)
 
   return {
     hasMore,
-    nextCursor: tail ? { id: tail.id, tsMs: tail.ts_ms } : undefined,
+    nextCursor: tail && { id: tail.id, tsMs: tail.ts_ms },
     rows,
   }
 }
@@ -112,8 +142,6 @@ const dedupeRowsById = (rows: RecordRow[]): RecordRow[] => {
   return deduped
 }
 
-type RowsUpdateMode = 'replace' | 'append'
-
 const applyPage = (
   state: RowsState,
   page: RowsPage,
@@ -129,11 +157,13 @@ const applyPage = (
       : dedupeRowsById([...state.rows, ...page.rows]),
 })
 
-const updateRowsState = async (
-  get: Getter,
-  set: Setter,
-  mode: RowsUpdateMode,
-) => {
+const updateTotal = async (get: Getter, set: Setter) => {
+  const db = await get(dbAtom)
+  const total = await getTotalRows(db)
+  set(totalRowsAtom, total)
+}
+
+const updateRows = async (get: Getter, set: Setter, mode: RowsUpdateMode) => {
   const state = get(rowsStateAtom)
   if (state.isLoading) {
     return
@@ -155,12 +185,16 @@ export const refreshRowsAtom = atom(
   useMock
     ? () => {}
     : async (get, set) => {
-        if (!get(isNearTopAtom)) {
+        await updateTotal(get, set)
+
+        if (!get(positionAtom).top) {
           set(pendingNewRowsAtom, current => current + 1)
           return
         }
 
-        await updateRowsState(get, set, 'replace')
+        logger('refreshing rows...')
+
+        await updateRows(get, set, 'replace')
       },
 )
 
@@ -169,6 +203,7 @@ export const loadMoreRowsAtom = atom(
   useMock
     ? () => {}
     : async (get, set) => {
-        await updateRowsState(get, set, 'append')
+        logger('loading more rows...')
+        await updateRows(get, set, 'append')
       },
 )

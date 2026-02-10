@@ -18,6 +18,7 @@ export default defineConfig(async () => ({
       babel: {
         presets: ['jotai/babel/preset'],
       },
+      jsxImportSource: '@welldone-software/why-did-you-render',
     }),
     tailwindcss(),
   ],

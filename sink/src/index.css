@@ -206,3 +206,12 @@
     mix-blend-mode: normal;
   }
 }
+
+@keyframes total-rows-flash {
+  0% {
+    color: var(--color-emerald-500);
+  }
+  100% {
+    color: inherit;
+  }
+}

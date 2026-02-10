@@ -3,6 +3,7 @@ import { atom, useAtomValue } from 'jotai'
 import type { RecordRow } from '@/db.tsx'
 import { cn } from '@/lib/utils'
 import { log } from '@/log.ts'
+import { Controls } from '@/records/controls.tsx'
 import { Fields } from '@/records/fields.tsx'
 import { RecordsTable } from '@/records/table.tsx'
 
@@ -20,7 +21,10 @@ export const Records = () => {
         selected ? 'grid-cols-[3fr_1fr]' : 'grid-cols-[1fr_0fr]',
       )}
     >
-      <RecordsTable />
+      <div className="flex h-[calc(100vh-8rem)] min-w-0 flex-col rounded-md border">
+        <Controls />
+        <RecordsTable />
+      </div>
 
       {selected && <Fields />}
     </div>
