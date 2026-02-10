@@ -1,8 +1,12 @@
 import { cva } from 'class-variance-authority'
+import type { ComponentProps } from 'react'
 
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 const levels = ['trace', 'debug', 'info', 'warn', 'error', 'off'] as const
+
+export const levelName = (level: number) => levels[level] ?? String(level)
 
 const levelBadgeVariants = cva(
   ['uppercase', 'text-xxs', 'font-semibold', 'tracking-wider', 'w-full'],
@@ -44,7 +48,15 @@ const levelBadgeVariants = cva(
   },
 )
 
-export const LevelBadge = ({ level }: { level: number }) => {
-  const name = levels[level]
-  return <Badge className={levelBadgeVariants({ level: name })}>{name}</Badge>
+export const LevelBadge = ({
+  className,
+  level,
+  ...props
+}: { level: number } & ComponentProps<typeof Badge>) => {
+  const name = levelName(level)
+  return (
+    <Badge className={cn(levelBadgeVariants({ level: name }), className)} {...props}>
+      {name}
+    </Badge>
+  )
 }

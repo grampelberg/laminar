@@ -1,6 +1,7 @@
 import Database from '@tauri-apps/plugin-sql'
 import { type Getter, type Setter, atom } from 'jotai'
 import { focusAtom } from 'jotai-optics'
+import { atomWithStorage } from 'jotai/utils'
 import {
   type CompiledQuery,
   DummyDriver,
@@ -70,7 +71,20 @@ export const pendingNewRowsAtom = focusAtom(rowsStateAtom, optic =>
   optic.prop('pendingNewRows'),
 )
 
-export const filtersAtom = atom<RecordFilter[]>([])
+const rawFiltersAtom = atomWithStorage<RecordFilter[]>('recordFilters', [])
+export const filtersAtom = atom(
+  get => get(rawFiltersAtom),
+  (
+    get,
+    set,
+    update: RecordFilter[] | ((current: RecordFilter[]) => RecordFilter[]),
+  ) => {
+    const next =
+      typeof update === 'function' ? update(get(rawFiltersAtom)) : update
+    set(rawFiltersAtom, next)
+    set(refreshRowsAtom)
+  },
+)
 
 export const positionAtom = atom({ top: true, bottom: false })
 
@@ -79,13 +93,27 @@ const execute = async <Row,>(
   query: CompiledQuery<unknown>,
 ): Promise<Row[]> => await db.select<Row[]>(query.sql, [...query.parameters])
 
-const baseRecordsQuery = () =>
-  queryBuilder.selectFrom('records').where('kind', '=', 0)
+type RecordsBaseQuery = ReturnType<typeof baseRecordsQuery>
+
+const baseRecordsQuery = (filters: RecordFilter[]) => {
+  let query = queryBuilder.selectFrom('records').where('kind', '=', 0)
+
+  for (const filter of filters) {
+    query = query.where(
+      filter.column as keyof Records,
+      '=',
+      filter.value as never,
+    )
+  }
+
+  return query
+}
 
 const getTotalRows = async (
   db: Awaited<ReturnType<typeof Database.load>>,
+  base: RecordsBaseQuery,
 ): Promise<number> => {
-  const totalQuery = baseRecordsQuery().select([
+  const totalQuery = base.select([
     sql<number>`COUNT(*)`.as('count'),
   ])
   const [{ count }] = await execute<{ count: number }>(db, totalQuery.compile())
@@ -94,10 +122,9 @@ const getTotalRows = async (
 
 const getRowsPage = async (
   db: Awaited<ReturnType<typeof Database.load>>,
+  base: RecordsBaseQuery,
   cursor?: RowsCursor,
 ): Promise<RowsPage> => {
-  const base = baseRecordsQuery()
-
   let rowQuery = base
     .orderBy('ts_ms', 'desc')
     .orderBy('id', 'desc')
@@ -159,7 +186,8 @@ const applyPage = (
 
 const updateTotal = async (get: Getter, set: Setter) => {
   const db = await get(dbAtom)
-  const total = await getTotalRows(db)
+  const base = baseRecordsQuery(get(filtersAtom))
+  const total = await getTotalRows(db, base)
   set(totalRowsAtom, total)
 }
 
@@ -175,8 +203,9 @@ const updateRows = async (get: Getter, set: Setter, mode: RowsUpdateMode) => {
   const db = await get(dbAtom)
   set(rowsStateAtom, { ...state, isLoading: true })
 
+  const base = baseRecordsQuery(get(filtersAtom))
   const cursor = mode === 'replace' ? undefined : state.nextCursor
-  const page = await getRowsPage(db, cursor)
+  const page = await getRowsPage(db, base, cursor)
   set(rowsStateAtom, applyPage(state, page, mode))
 }
 

@@ -9,6 +9,7 @@
     "suspicious": "error"
   },
   "rules": {
+    "capitalized-comments": "off",
     "eslint/no-magic-numbers": [
       "error",
       {
