@@ -13,10 +13,13 @@ import {
 } from '@tanstack/react-virtual'
 import {
   type CSSProperties,
+  type ForwardedRef,
   type ReactElement,
   createContext,
+  forwardRef,
   useEffect,
   useContext,
+  useImperativeHandle,
   useMemo,
   useRef,
 } from 'react'
@@ -43,6 +46,10 @@ interface ColumnMeta {
 export interface Viewport {
   first: number
   last: number
+}
+
+export interface DataTableHandle {
+  scrollToTop: () => void
 }
 
 type RowPropsHook<Data extends RowData> = (
@@ -179,16 +186,23 @@ export interface DataTableProps<Data extends RowData> {
   onScroll: (viewport: Viewport) => void
 }
 
-// It needs to be documented that useRowProps is expected to be a *hook* and
-// therefore have all the expectations hooks have.
-export const DataTable = <Data extends RowData>({
-  table,
-  fullWidth = false,
-  useRowProps,
-  virtualOpts,
-  onScroll,
-}: DataTableProps<Data>) => {
-  const ref = useRef<HTMLDivElement>(null)
+const DataTableInner = <Data extends RowData>(
+  {
+    table,
+    fullWidth = false,
+    useRowProps,
+    virtualOpts,
+    onScroll,
+  }: DataTableProps<Data>,
+  ref: ForwardedRef<DataTableHandle>,
+) => {
+  const viewportRef = useRef<HTMLDivElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    scrollToTop: () => {
+      viewportRef.current?.scrollTo({ top: 0 })
+    },
+  }))
 
   const columnSizeVars = useMemo(() => {
     const lastId = table.getVisibleLeafColumns().at(-1)?.id
@@ -207,7 +221,7 @@ export const DataTable = <Data extends RowData>({
 
   const virt = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => ref.current,
+    getScrollElement: () => viewportRef.current,
     estimateSize: () => DEFAULT_ROW_HEIGHT,
     overscan: 10,
     ...virtualOpts,
@@ -231,7 +245,7 @@ export const DataTable = <Data extends RowData>({
         isResizingColumn && 'cursor-col-resize select-none',
       )}
     >
-      <ScrollArea ref={ref}>
+      <ScrollArea ref={viewportRef}>
         <Table
           className={cn('table-fixed', fullWidth && 'w-full')}
           style={{
@@ -280,3 +294,9 @@ export const DataTable = <Data extends RowData>({
     </div>
   )
 }
+
+type DataTableComponent = <Data extends RowData>(
+  props: DataTableProps<Data> & { ref?: ForwardedRef<DataTableHandle> },
+) => ReactElement
+
+export const DataTable = forwardRef(DataTableInner) as DataTableComponent

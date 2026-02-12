@@ -24,6 +24,7 @@ fn get_address(state: tauri::State<'_, AppData>) -> String {
     state.address.to_string()
 }
 
+#[cfg(debug_assertions)]
 fn enable_devtools(window: WebviewWindow<Wry>) {
     window.open_devtools();
     window.close_devtools();

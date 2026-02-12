@@ -1,7 +1,6 @@
 import { Slot } from '@radix-ui/react-slot'
 import { useSetAtom } from 'jotai'
-import { isEqual } from 'lodash-es'
-import type { ComponentProps, MouseEvent } from 'react'
+import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 
 import { filtersAtom, type RecordFilter } from '@/db'
 import { cn } from '@/lib/utils'
@@ -10,14 +9,16 @@ export const FilterCell = ({
   children,
   filter,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   filter: RecordFilter
 }) => {
   const setFilters = useSetAtom(filtersAtom)
+  const matchesFilter = (current: RecordFilter) =>
+    current.column === filter.column && Object.is(current.value, filter.value)
 
   const addFilter = (event: MouseEvent) => {
     event.stopPropagation()
-    setFilters(current => [...current.filter(i => !isEqual(i, filter)), filter])
+    setFilters(current => [...current.filter(i => !matchesFilter(i)), filter])
   }
 
   const slotProps: ComponentProps<typeof Slot> = {

@@ -4,14 +4,19 @@ import {
   type Row as TRow,
 } from '@tanstack/react-table'
 import { useAtomValue, useAtom, useSetAtom } from 'jotai'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, type CSSProperties } from 'react'
 
-import { DataTable, type Viewport } from '@/components/ui/data-table'
+import {
+  DataTable,
+  type DataTableHandle,
+  type Viewport,
+} from '@/components/ui/data-table'
 import {
   type RecordRow,
+  filtersAtom,
   positionAtom,
   loadMoreRowsAtom,
-  refreshRowsAtom,
+  newRowsAtom,
   rowsStateAtom,
 } from '@/db.tsx'
 import { cn } from '@/lib/utils'
@@ -22,14 +27,16 @@ import { recordsSchema } from '@/records/schema'
 const logger = log(import.meta.url)
 
 const OVERSCAN = 10
-const FLASH_DURATION = 5_000
+const FLASH_DURATION = 5000
 
 export const RecordsTable = () => {
+  const filters = useAtomValue(filtersAtom)
   const { hasMore, isLoading, pendingNewRows, rows } =
     useAtomValue(rowsStateAtom)
   const [selected, setSelected] = useAtom(selectedAtom)
+  const dataTableRef = useRef<DataTableHandle>(null)
 
-  const refreshRows = useSetAtom(refreshRowsAtom)
+  const newRows = useSetAtom(newRowsAtom)
   const loadMoreRows = useSetAtom(loadMoreRowsAtom)
   const setPosition = useSetAtom(positionAtom)
 
@@ -42,28 +49,9 @@ export const RecordsTable = () => {
     getRowId: row => String(row.id),
   })
 
-  const rowProps = (row: TRow<RecordRow>) => {
-    let active = false
-
-    let elapsed = 0
-    if (row.original._added) {
-      elapsed = Date.now() - row.original._added
-      active = FLASH_DURATION - elapsed > 0
-    }
-
-    return {
-      className: cn(
-        '[&>td>*]:animate-fade-in',
-        active && 'flash-border-left flash-row',
-      ),
-      style: active && {
-        '--flash-duration': `${FLASH_DURATION}ms`,
-        '--flash-delay': `${-elapsed}ms`,
-      },
-      'data-state': selected?.id === row.original.id ? 'selected' : undefined,
-      onClick: () => setSelected(row.original),
-    }
-  }
+  useEffect(() => {
+    dataTableRef.current?.scrollToTop()
+  }, [filters])
 
   const onScroll = useCallback(
     ({ first, last }: Viewport) => {
@@ -79,7 +67,7 @@ export const RecordsTable = () => {
       setPosition(position)
 
       if (position.top && pendingNewRows) {
-        refreshRows()
+        newRows()
       }
 
       if (position.bottom && hasMore) {
@@ -90,15 +78,41 @@ export const RecordsTable = () => {
       hasMore,
       isLoading,
       loadMoreRows,
+      newRows,
       pendingNewRows,
-      refreshRows,
       rows.length,
       setPosition,
     ],
   )
 
+  const rowProps = (row: TRow<RecordRow>) => {
+    let active = false
+
+    let elapsed = 0
+    if (row.original._added) {
+      elapsed = Date.now() - row.original._added
+      active = FLASH_DURATION - elapsed > 0
+    }
+
+    return {
+      className: cn(
+        '[&>td>*]:animate-fade-in',
+        active && 'flash-border-left flash-row',
+      ),
+      style: active
+        ? ({
+            '--flash-duration': `${FLASH_DURATION}ms`,
+            '--flash-delay': `${-elapsed}ms`,
+          } as CSSProperties)
+        : undefined,
+      'data-state': selected?.id === row.original.id ? 'selected' : undefined,
+      onClick: () => setSelected(row.original),
+    }
+  }
+
   return (
     <DataTable
+      ref={dataTableRef}
       table={table}
       fullWidth
       useRowProps={rowProps}

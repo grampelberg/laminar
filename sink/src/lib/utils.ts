@@ -11,7 +11,7 @@ const twMerge = extendTailwindMerge({
 })
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
-export const px = (n: number) => `${n}px`
+export const px = (value: number) => `${value}px`
 
 export const isDark = globalThis.matchMedia(
   '(prefers-color-scheme: dark)',

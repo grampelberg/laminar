@@ -1,17 +1,14 @@
-import { faker } from '@faker-js/faker'
 import {
   createColumnHelper,
   getCoreRowModel,
   useReactTable,
   flexRender,
+  type Header as THead,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AnimatePresence, motion } from 'framer-motion'
-import { range } from 'lodash-es'
-import { useRef, useMemo } from 'react'
+import { type CSSProperties, useRef, useMemo } from 'react'
 
-import { DataTable } from '@/components/ui/data-table'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Table,
   TableHead,
@@ -42,24 +39,14 @@ const schema = [
   builder.accessor('message', {}),
 ]
 
-const blockForMs = (ms: number) => {
-  const start = performance.now()
-  while (performance.now() - start < ms) {
-    // block
-  }
-}
+const lots = [...data, ...data, ...data, ...data, ...data] as SampleRow[]
+const SAMPLE_ROW_HEIGHT = 35
 
-const lots = [...data, ...data, ...data, ...data, ...data]
-
-const getStyle = node => {
-  const meta = node.column.columnDef.meta || {}
-
-  return {
-    style: {
-      width: `var(--col-${node.column.id}-size)`,
-    },
-  }
-}
+const getStyle = (node: THead<SampleRow, unknown>) => ({
+  style: {
+    width: `var(--col-${node.column.id}-size)`,
+  },
+})
 
 export const SampleTable = () => {
   const table = useReactTable<SampleRow>({
@@ -77,7 +64,7 @@ export const SampleTable = () => {
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => ref.current,
-    estimateSize: () => 35,
+    estimateSize: () => SAMPLE_ROW_HEIGHT,
     overscan: 25,
   })
 

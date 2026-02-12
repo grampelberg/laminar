@@ -7,27 +7,19 @@
 ## Frontend
 
 - I'm not sure source or level are especially helpful. The source is definitely
-  taking up a ton of space. I feel like I want to use it for filtering, but I
-  should probably get the filtering in place before making that assumption.
+  taking up a ton of space. They're both nice for filtering, but maybe they
+  should go on the right instead of the left?
 - Wire the json view up to the dark/light mode selector.
-- Animate loading new rows
 - Add routing that can target state like row and sidebar
 - Opening the sidebar runs all in the click handler and takes ~200ms. That needs
   to get cleaned up. I assume it is from the JSON.parse().
-- Can I use react bits for the command palette? Maybe the
-  [dock](https://reactbits.dev/components/dock)?
 
 ### Bugs
 
-- Applying a filter doesn't replace the data. This is really only noticable if
-  you've scrolled down a couple pages first.
 - Applying a filter and then removing it causes some rows to be "new", mostly
   based on whether they were in the data previously or not. Is there a more
   reliable way to mark "newly received to the database" rows? Maybe just use the
   damn database timestamp to manage the animation? Is that insane? It is insane.
-- Refreshing rows is getting called twice. I think that this is _technically_
-  okay because isLoading gets set to true but there's something causing it that
-  I'm missing.
 
 ### Testing
 
@@ -60,12 +52,16 @@
   measureElement: el => el.getBoundingClientRect().height,
   ```
 
-- Can I use the virtualizer for doing infinite scroll instead of the custom one
-  now?
 - Even with a virtualized table, it is still taking ~75ms to render the table.
   It appears that this is all happening in `flexRender` as I don't get the
   violations when outputting raw text. Even with raw text, there are occasional
   violations. I'm not sure it is worth the effort to clean this one up.
+
+  Note: it has up to ~110ms or so now. The cell renders are doing more work. I'm
+  not sure you can tell that there's a delay though given all the animations.
+
+- Does it make sense to add a way to know where in the total rows you are
+  scrolled to?
 
 ### Fixtures
 
@@ -89,5 +85,3 @@
 - Configure a remote sink to send the local client's logs to.
 
 ### Filters
-
-- Filter on source.

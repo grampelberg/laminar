@@ -1,4 +1,4 @@
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtom } from 'jotai'
 import { X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -6,8 +6,7 @@ import { filtersAtom } from '@/db'
 import { filterLabelFor } from '@/records/schema'
 
 export const Filters = () => {
-  const filters = useAtomValue(filtersAtom)
-  const setFilters = useSetAtom(filtersAtom)
+  const [filters, setFilters] = useAtom(filtersAtom)
 
   const removeFilter = (index: number) => {
     setFilters(current => current.filter((_, itemIndex) => itemIndex !== index))

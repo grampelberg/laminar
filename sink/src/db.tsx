@@ -58,7 +58,7 @@ type RowsState = RowsPage & {
   pendingNewRows: number
 }
 
-type RowsUpdateMode = 'replace' | 'append'
+type RowsUpdateMode = 'replace' | 'merge' | 'append'
 
 const initialRowsState: RowsState = {
   hasMore: true,
@@ -85,7 +85,7 @@ export const filtersAtom = atom(
     const next =
       typeof update === 'function' ? update(get(rawFiltersAtom)) : update
     set(rawFiltersAtom, next)
-    set(refreshRowsAtom)
+    set(replaceRowsAtom)
   },
 )
 
@@ -187,16 +187,36 @@ const applyPage = (
   state: RowsState,
   page: RowsPage,
   mode: RowsUpdateMode,
-): RowsState => ({
-  hasMore: page.hasMore,
-  isLoading: false,
-  nextCursor: page.nextCursor,
-  pendingNewRows: mode === 'replace' ? 0 : state.pendingNewRows,
-  rows:
-    mode === 'replace'
-      ? markAdded(state.rows, page.rows)
-      : [...state.rows, ...page.rows],
-})
+): RowsState => {
+  const { rows: pageRows } = page
+  const { pendingNewRows: currentPendingNewRows } = state
+  let rows: RecordRow[] = pageRows
+  let pendingNewRows = 0
+
+  switch (mode) {
+    case 'replace': {
+      rows = pageRows
+      break
+    }
+    case 'merge': {
+      rows = markAdded(state.rows, pageRows)
+      break
+    }
+    case 'append': {
+      rows = [...state.rows, ...pageRows]
+      pendingNewRows = currentPendingNewRows
+      break
+    }
+  }
+
+  return {
+    hasMore: page.hasMore,
+    isLoading: false,
+    nextCursor: page.nextCursor,
+    pendingNewRows,
+    rows,
+  }
+}
 
 const updateTotal = async (get: Getter, set: Setter) => {
   const db = await get(dbAtom)
@@ -218,27 +238,38 @@ const updateRows = async (get: Getter, set: Setter, mode: RowsUpdateMode) => {
   set(rowsStateAtom, { ...state, isLoading: true })
 
   const base = baseRecordsQuery(get(filtersAtom))
-  const cursor = mode === 'replace' ? undefined : state.nextCursor
+  const cursor = mode === 'append' ? state.nextCursor : undefined
   const page = await getRowsPage(db, base, cursor)
   set(rowsStateAtom, applyPage(state, page, mode))
 }
 
-export const refreshRowsAtom = atom(
+const updateNewRows = async (get: Getter, set: Setter) => {
+  await updateTotal(get, set)
+
+  if (!get(positionAtom).top) {
+    set(pendingNewRowsAtom, current => current + 1)
+    return
+  }
+
+  logger('refreshing rows...')
+
+  await updateRows(get, set, 'merge')
+}
+
+export const newRowsAtom = atom(
   undefined,
-  useMock
-    ? () => {}
-    : async (get, set) => {
-        await updateTotal(get, set)
+  useMock ? async () => {} : updateNewRows,
+)
 
-        if (!get(positionAtom).top) {
-          set(pendingNewRowsAtom, current => current + 1)
-          return
-        }
+const replaceRows = async (get: Getter, set: Setter) => {
+  await updateTotal(get, set)
+  logger('replacing rows...')
+  await updateRows(get, set, 'replace')
+}
 
-        logger('refreshing rows...')
-
-        await updateRows(get, set, 'replace')
-      },
+export const replaceRowsAtom = atom(
+  undefined,
+  useMock ? async () => {} : replaceRows,
 )
 
 export const loadMoreRowsAtom = atom(

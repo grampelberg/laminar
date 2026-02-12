@@ -84,14 +84,23 @@ backend.
 
 ### Run
 
+To run the app:
+
 ```bash
 bun tauri dev
 ```
 
+To run the dev server only:
+
+```bash
+bun dev
+```
+
+If you'd like to test without `StrictMode`, set `VITE_STRICT_MODE=false`.
+
 ## Features
 
 - clean: remove all the application files on startup.
-
 
 ## Narrative
 
