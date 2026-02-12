@@ -14,6 +14,14 @@ interface RecordsColumnMeta {
 
 const columnHelper = createColumnHelper<RecordRow>()
 
+// Note: make sure all columns are in *some* kind of element. Without an element
+// it won't animate. This is because the fade-in animation runs on the direct
+// children of the <td> cells themselves. That animation is targetted there so
+// that the flash animation (which must be via a pseudo element inserted into
+// the first <td>) doesn't have a fade-in animation while it is doing the
+// fade-out. The first <td> requirement is because browsers are not great at
+// animating box-shadow and in particular, WebKit really dislikes animating
+// anything at the row level.
 export const recordsSchema = [
   columnHelper.accessor('ts_ms', {
     cell: ctx => <Timestamp ms={ctx.getValue()} />,
@@ -52,9 +60,12 @@ export const recordsSchema = [
     size: 200,
   }),
   columnHelper.accessor('message', {
+    cell: ctx => (
+      <span className="block w-full truncate">{ctx.getValue()}</span>
+    ),
     header: 'Message',
     meta: {
-      cellClassName: 'truncate',
+      cellClassName: 'overflow-hidden',
     } satisfies RecordsColumnMeta,
   }),
 ]

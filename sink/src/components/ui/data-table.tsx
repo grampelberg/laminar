@@ -14,7 +14,9 @@ import {
 import {
   type CSSProperties,
   type ReactElement,
+  createContext,
   useEffect,
+  useContext,
   useMemo,
   useRef,
 } from 'react'
@@ -43,9 +45,22 @@ export interface Viewport {
   last: number
 }
 
-type RowPropsFn<Data extends RowData> = (
+type RowPropsHook<Data extends RowData> = (
   row: TRow<Data>,
 ) => React.ComponentProps<'tr'>
+
+const RowPropsContext = createContext<RowPropsHook<unknown> | undefined>(
+  undefined,
+)
+
+const useRowProps = <Data extends RowData>(row: TRow<Data>) => {
+  const hook = useContext(RowPropsContext) as RowPropsHook<Data>
+  if (!hook) {
+    return {}
+  }
+
+  return hook(row)
+}
 
 const HCell = <Data extends RowData, Value = unknown>({
   node,
@@ -103,33 +118,36 @@ const Empty = ({ colSpan }: { colSpan: number }) => (
   </TableRow>
 )
 
+// Note: this is a wrapper *only* for the purpose of making sure that hooks are
+// stable and don't change as part of components being added/removed.
+const TRow = <Data extends RowData>({
+  row,
+  size,
+}: {
+  row: TRow<Data>
+  size: number
+}) => {
+  const props = useRowProps<Data>(row)
+
+  return (
+    <TableRow {...props} style={{ ...props?.style, height: size }}>
+      {row.getVisibleCells().map(cell => (
+        <BCell key={cell.id} node={cell} />
+      ))}
+    </TableRow>
+  )
+}
+
 interface BodyProps<Data extends RowData> {
   rows: TRow<Data>[]
-  rowProps?: RowPropsFn<Data>
   virtualizer: Virtualizer<HTMLDivElement, Element>
 }
 
-const Body = <Data extends RowData>({
-  rows,
-  rowProps,
-  virtualizer,
-}: BodyProps<Data>) =>
+const Body = <Data extends RowData>({ rows, virtualizer }: BodyProps<Data>) =>
   virtualizer.getVirtualItems().map(item => {
     const row = rows[item.index]
 
-    return (
-      <TableRow
-        key={row.id}
-        style={{
-          height: item.size,
-        }}
-        {...rowProps?.(row)}
-      >
-        {row.getVisibleCells().map(cell => (
-          <BCell key={cell.id} node={cell} />
-        ))}
-      </TableRow>
-    )
+    return <TRow key={row.id} row={row} size={item.size} />
   })
 
 const MemoBody = memo(
@@ -139,9 +157,7 @@ const MemoBody = memo(
   props: BodyProps<Data> & { viewport: string },
 ) => ReactElement
 
-const getPosition = (
-  virtual: Virtualizer<HTMLDivElement, Element>,
-) => {
+const getPosition = (virtual: Virtualizer<HTMLDivElement, Element>) => {
   const items = virtual.getVirtualItems()
   const first = items[0]?.index ?? 0
   const last = items.at(-1)?.index ?? 0
@@ -158,15 +174,17 @@ const getPosition = (
 export interface DataTableProps<Data extends RowData> {
   table: TTable<Data>
   fullWidth?: boolean
-  rowProps?: RowPropsFn<Data>
+  useRowProps?: RowPropsHook<Data>
   virtualOpts?: Partial<ReactVirtualizerOptions<HTMLDivElement, Element>>
   onScroll: (viewport: Viewport) => void
 }
 
+// It needs to be documented that useRowProps is expected to be a *hook* and
+// therefore have all the expectations hooks have.
 export const DataTable = <Data extends RowData>({
   table,
   fullWidth = false,
-  rowProps,
+  useRowProps,
   virtualOpts,
   onScroll,
 }: DataTableProps<Data>) => {
@@ -196,6 +214,9 @@ export const DataTable = <Data extends RowData>({
   })
 
   const { top, bottom, first, last, key } = getPosition(virt)
+  const isResizingColumn = Boolean(
+    table.getState().columnSizingInfo.isResizingColumn,
+  )
 
   useEffect(() => {
     onScroll({ first, last })
@@ -204,7 +225,12 @@ export const DataTable = <Data extends RowData>({
   const columnCount = table.getVisibleLeafColumns().length
 
   return (
-    <div className="min-h-0 flex-1">
+    <div
+      className={cn(
+        'min-h-0 flex-1',
+        isResizingColumn && 'cursor-col-resize select-none',
+      )}
+    >
       <ScrollArea ref={ref}>
         <Table
           className={cn('table-fixed', fullWidth && 'w-full')}
@@ -229,14 +255,17 @@ export const DataTable = <Data extends RowData>({
               </tr>
             )}
             {rows.length ? (
-              <MemoBody
-                {...{
-                  rows,
-                  rowProps,
-                  virtualizer: virt,
-                  viewport: key,
-                }}
-              />
+              <RowPropsContext.Provider
+                value={useRowProps as RowPropsHook<unknown> | undefined}
+              >
+                <MemoBody
+                  {...{
+                    rows,
+                    virtualizer: virt,
+                    viewport: key,
+                  }}
+                />
+              </RowPropsContext.Provider>
             ) : (
               <Empty colSpan={table.getVisibleLeafColumns().length} />
             )}

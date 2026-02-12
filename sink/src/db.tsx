@@ -32,7 +32,10 @@ export const queryBuilder = new Kysely<DB>({
 const dbAtom = atom(async () => await Database.load('sqlite:inspector.db'))
 const ROWS_CHUNK_SIZE = 100
 
-export type RecordRow = Selectable<Records> & { message?: string }
+export type RecordRow = Selectable<Records> & {
+  _added?: number
+  message?: string
+}
 
 export interface RecordFilter {
   column: keyof RecordRow
@@ -113,13 +116,13 @@ const getTotalRows = async (
   db: Awaited<ReturnType<typeof Database.load>>,
   base: RecordsBaseQuery,
 ): Promise<number> => {
-  const totalQuery = base.select([
-    sql<number>`COUNT(*)`.as('count'),
-  ])
+  const totalQuery = base.select([sql<number>`COUNT(*)`.as('count')])
   const [{ count }] = await execute<{ count: number }>(db, totalQuery.compile())
   return count
 }
 
+// Note: there are a *lot* of assumptions throughout this file wrt ordering. If
+// the ordering or cursor ends up changing, it'll break things.
 const getRowsPage = async (
   db: Awaited<ReturnType<typeof Database.load>>,
   base: RecordsBaseQuery,
@@ -154,19 +157,30 @@ const getRowsPage = async (
   }
 }
 
-const dedupeRowsById = (rows: RecordRow[]): RecordRow[] => {
-  const seen = new Set<number>()
-  const deduped: RecordRow[] = []
-
-  for (const row of rows) {
-    if (seen.has(row.id)) {
-      continue
-    }
-    seen.add(row.id)
-    deduped.push(row)
+const markAdded = (prev: RecordRow[], next: RecordRow[]): RecordRow[] => {
+  const head = prev.at(0)
+  if (!head) {
+    return next
   }
 
-  return deduped
+  const prevAdded = prev.reduce((acc, row) => {
+    if (row._added) {
+      acc.set(row.id, row._added)
+    }
+
+    return acc
+  }, new Map())
+
+  const now = Date.now()
+  for (const row of next) {
+    if (row.id > head.id && row.ts_ms >= head.ts_ms) {
+      row._added = now
+    } else if (prevAdded.has(row.id)) {
+      row._added = prevAdded.get(row.id)
+    }
+  }
+
+  return next
 }
 
 const applyPage = (
@@ -180,8 +194,8 @@ const applyPage = (
   pendingNewRows: mode === 'replace' ? 0 : state.pendingNewRows,
   rows:
     mode === 'replace'
-      ? page.rows
-      : dedupeRowsById([...state.rows, ...page.rows]),
+      ? markAdded(state.rows, page.rows)
+      : [...state.rows, ...page.rows],
 })
 
 const updateTotal = async (get: Getter, set: Setter) => {

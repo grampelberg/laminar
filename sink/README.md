@@ -92,6 +92,7 @@ bun tauri dev
 
 - clean: remove all the application files on startup.
 
+
 ## Narrative
 
 - I can't see the logs
@@ -139,3 +140,6 @@ bun tauri dev
 - `tail` is a classic that is similar to what this is doing.
 - I don't mind words that sound fine but mean nothing.
 - Having something that lends itself well to a logo or mascot would be nice.
+- Maybe something with "stream" in it? There's something interesting about
+  "tributaries" being joined together into something bigger? Could also go with
+  fishing, as in looking for something valuable from streams.

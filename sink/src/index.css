@@ -207,11 +207,98 @@
   }
 }
 
-@keyframes total-rows-flash {
-  0% {
-    color: var(--color-emerald-500);
+/*@utility flash-border {
+  animation: flash-border var(--flash-duration, 500ms) ease-out;
+  animation-delay: var(--flash-delay, 0ms);
+  animation-fill-mode: both;
+}
+
+tr.flash-border {
+  animation: none;
+}
+tr.flash-border > td:first-child {
+  @apply flash-border;
+}*/
+
+@utility flash-border {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    background: var(--flash-color, var(--color-emerald-500));
+    opacity: 0;
+    animation: fade-out var(--flash-duration, 500ms) ease-out;
+    animation-delay: var(--flash-delay, 0ms);
+    animation-fill-mode: both;
+
+    inset-inline-start: var(--flash-left, auto);
+    inset-inline-end: var(--flash-right, auto);
+    inset-block-start: var(--flash-top, auto);
+    inset-block-end: var(--flash-bottom, auto);
+    width: var(--flash-w, auto);
+    height: var(--flash-h, auto);
   }
-  100% {
-    color: inherit;
+}
+
+tr.flash-row > td:first-child {
+  @apply flash-border;
+}
+
+.flash-border-left {
+  --flash-left: 0;
+  --flash-top: 0;
+  --flash-bottom: 0;
+  --flash-w: 5px;
+}
+
+@utility flash-color-* {
+  --flash-color: --value(--color-*);
+}
+
+@utility animate-from-color {
+  animation: from-color var(--duration, 500ms) ease-out;
+}
+
+@theme {
+  --animate-fade-in: fade-in var(--fade-duration, 500ms) ease-out;
+
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
   }
+
+  @keyframes fade-out {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes flash-border {
+    0% {
+      box-shadow: inset var(--flash-x, 0) var(--flash-y, 0) 0
+        var(--flash-color, var(--color-emerald-500));
+    }
+    100% {
+      box-shadow: inset 0 0 0 transparent;
+    }
+  }
+
+  @keyframes from-color {
+    0% {
+      color: var(--from-color, var(--color-emerald-500));
+    }
+    100% {
+      color: inherit;
+    }
+  }
+
 }

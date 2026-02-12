@@ -14,6 +14,20 @@
 - Add routing that can target state like row and sidebar
 - Opening the sidebar runs all in the click handler and takes ~200ms. That needs
   to get cleaned up. I assume it is from the JSON.parse().
+- Can I use react bits for the command palette? Maybe the
+  [dock](https://reactbits.dev/components/dock)?
+
+### Bugs
+
+- Applying a filter doesn't replace the data. This is really only noticable if
+  you've scrolled down a couple pages first.
+- Applying a filter and then removing it causes some rows to be "new", mostly
+  based on whether they were in the data previously or not. Is there a more
+  reliable way to mark "newly received to the database" rows? Maybe just use the
+  damn database timestamp to manage the animation? Is that insane? It is insane.
+- Refreshing rows is getting called twice. I think that this is _technically_
+  okay because isLoading gets set to true but there's something causing it that
+  I'm missing.
 
 ### Testing
 
@@ -22,6 +36,9 @@
   - The infinite scroll infrastructure.
   - The db update tooling.
   - Database queries in general.
+  - I'm making some assumptions about ordering and the cursor right now, I want
+    a test that validates these assumptions in a way that it _explicitly_ breaks
+    if the assumption changes.
 
   I'm not sure what the right way to test any of it is.
 
