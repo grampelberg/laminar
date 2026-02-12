@@ -2,11 +2,11 @@ mod record;
 mod stream;
 mod throttle;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use eyre::Result;
 use inspector::config::{KeySource, LayerConfig, ReaderConfig};
-use iroh::EndpointId;
+use iroh::{Endpoint, EndpointId};
 use tauri::{AppHandle, Manager, WebviewWindow, Wry};
 use tracing_subscriber::{
     filter::{EnvFilter, LevelFilter},
@@ -20,8 +20,8 @@ const DB_NAME: &'static str = "inspector.db";
 pub(crate) const REFRESH_EVENT: &str = "got_envelope";
 
 #[tauri::command]
-fn get_address(state: tauri::State<'_, AppData>) -> String {
-    state.address.to_string()
+fn get_config(state: tauri::State<'_, AppData>) -> Config {
+    state.config.clone()
 }
 
 #[cfg(debug_assertions)]
@@ -57,11 +57,6 @@ fn setup_logging(config: LayerConfig, enable: bool) -> Result<()> {
     Ok(())
 }
 
-fn db_url(data_path: PathBuf) -> Result<PathBuf> {
-    std::fs::create_dir_all(&data_path)?;
-    Ok(data_path.join(DB_NAME))
-}
-
 fn clean_app_data(path: &PathBuf) -> Result<()> {
     tracing::error!("cleaning {}", path.to_string_lossy());
 
@@ -85,17 +80,34 @@ fn load_config(config_path: &PathBuf) -> Result<(LayerConfig, ReaderConfig)> {
     Ok((layer, reader))
 }
 
+fn db_config(storage: &Storage) -> Result<(PathBuf, String)> {
+    std::fs::create_dir_all(&storage.data)?;
+    let path = storage.data.join(DB_NAME);
+    let url =
+        format!("sqlite:{}", storage.relative_data(&path)?.to_string_lossy());
+
+    Ok((path, url))
+}
+
 struct Storage {
+    root: PathBuf,
     config: PathBuf,
     data: PathBuf,
 }
 
 impl Storage {
     fn from(handle: &AppHandle<Wry>) -> Result<Self> {
+        let root = handle.path().app_data_dir()?;
+
         Ok(Self {
+            root: root.clone(),
             config: handle.path().app_config_dir()?.join("config"),
-            data: handle.path().app_data_dir()?.join("data"),
+            data: root.join("data"),
         })
+    }
+
+    fn relative_data(&self, path: &PathBuf) -> Result<PathBuf> {
+        Ok(path.strip_prefix(&self.root)?.to_path_buf())
     }
 }
 
@@ -112,8 +124,24 @@ impl std::fmt::Debug for Storage {
     }
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Config {
+    address: String,
+    db_url: String,
+}
+
+impl Config {
+    fn new(address: EndpointId, db_url: String) -> Self {
+        Self {
+            address: address.to_string(),
+            db_url,
+        }
+    }
+}
+
 struct AppData {
-    address: EndpointId,
+    config: Config,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -137,16 +165,6 @@ pub fn run() {
                 "config"
             );
 
-            app.manage(AppData {
-                address: key.public(),
-            });
-
-            let data_path = app.handle().path().app_data_dir()?;
-
-            if key.public().to_string().as_str() != "5364174d1c46a3700eae96f4adc13eeb67202fcd74e998c92e693b55f47e9698" {
-                panic!("fail");
-            }
-
             #[cfg(feature = "clean")]
             clean_app_data(&storage.data)?;
 
@@ -156,7 +174,13 @@ pub fn run() {
                     .expect("there's a main window"),
             );
 
-            let db_path = db_url(data_path)?;
+            let (db_path, db_url) = db_config(&storage)?;
+
+            app.manage(AppData {
+                config: Config::new(key.public(), db_url),
+            });
+
+            tracing::info!(path = ?db_path.to_string_lossy(), "db_path");
 
             RecordStream::builder()
                 .config(reader_config)
@@ -168,7 +192,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_address])
+        .invoke_handler(tauri::generate_handler![get_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

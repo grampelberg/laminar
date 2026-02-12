@@ -12,7 +12,9 @@ import {
   SqliteQueryCompiler,
   sql,
 } from 'kysely'
+import { config } from 'zod'
 
+import { configAtom } from '@/config.ts'
 import { log } from '@/log'
 import { useMock } from '@/mock'
 
@@ -29,7 +31,14 @@ export const queryBuilder = new Kysely<DB>({
   },
 })
 
-const dbAtom = atom(async () => await Database.load('sqlite:inspector.db'))
+const dbAtom = atom(async get => {
+  const cfg = await get(configAtom)
+
+  logger('config', cfg)
+
+  return await Database.load(cfg.dbUrl)
+})
+
 const ROWS_CHUNK_SIZE = 100
 
 export type RecordRow = Selectable<Records> & {

@@ -1,6 +1,5 @@
-import { invoke } from '@tauri-apps/api/core'
 import { AnimatePresence, motion } from 'framer-motion'
-import { atom, useAtomValue } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { Check, Copy } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -10,21 +9,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover.tsx'
+import { configAtom } from '@/config.ts'
 import { log } from '@/log.ts'
-import { useMock } from '@/mock.ts'
 
 const logger = log(import.meta.url)
 
-const addressAtom = atom(
-  useMock ? async () => '' : async () => await invoke<string>('get_address'),
-)
 const CLOSE_POPOVER = 1000
 const PULSE_DURATION = 0.35
 const PULSE_SCALE = 1.08
 const ICON_SWAP = 0.15
 
 export const AddressButton = () => {
-  const address = useAtomValue(addressAtom)
+  const cfg = useAtomValue(configAtom)
   const [copiedOpen, setCopiedOpen] = useState(false)
   const [pulseKey, setPulseKey] = useState(0)
   const copiedTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(
@@ -41,7 +37,7 @@ export const AddressButton = () => {
   )
 
   const handleCopyAddress = () => {
-    void globalThis.navigator.clipboard.writeText(address)
+    void globalThis.navigator.clipboard.writeText(cfg.address)
     setCopiedOpen(true)
     setPulseKey(current => current + 1)
 

@@ -6,6 +6,7 @@ import { newRowsAtom } from '@/db.tsx'
 import { useMock } from '@/mock.ts'
 
 let stop: UnlistenFn | undefined = undefined
+type ResponseEventKind = 'Connect' | 'Disconnect' | 'Data'
 
 export const useRowsUpdates = () => {
   const refreshRows = useSetAtom(newRowsAtom)
@@ -22,7 +23,11 @@ export const useRowsUpdates = () => {
         return
       }
 
-      stop = await listen('got_envelope', () => refreshRows())
+      stop = await listen<ResponseEventKind>('got_envelope', event => {
+        if (event.payload === 'Data') {
+          void refreshRows()
+        }
+      })
     })()
 
     return () => {

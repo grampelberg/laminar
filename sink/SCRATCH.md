@@ -1,8 +1,42 @@
 # Scratch
 
+- Pick a name
+- Get a status page that shows:
+  - Connected clients.
+  - Make sure `display_name` is working correctly from the load generator.
+- Get a settings page that:
+  - Allows configuring a remote log sink.
+- Backend -> frontend error reporting
+- JSON view that works
+  - Need to figure out the items that are metadata vs display, eg the pkgs and
+    \_added. These shouldn't be included in the view but maybe the table
+    _should_ be joined so that it shows up correctly in the UI?
+- Some kind of testing framework
+
+## Bugs
+
+- There's something weird about endpoints and reconnecting if you've failed in
+  the past. I had the app crash on an endpoint and then, even after restarts,
+  loadgen refused to connect to that endpoint. I made a new key and, voila, it
+  was able to connect immediately.
+- The "top" definition uses overscan right now. That means that even if you've
+  scrolled down from the top, it'll still get live updates which is pretty
+  annoying.
+
 ## Backend
 
+- Make it possible to configure a key for the layer in addition to the reader's
+  key. Do they need to be different files? It'll probably not work to try having
+  two processes with the same ID on the same host (but maybe that's fine because
+  I've got Tauri using its own config directory).
+
+  For multiple stdin forwarders to run on the same host, they likely need to be
+  different endpoints. Test this, but if that's the case, rely on
+  process/display_name more than the endpoint id.
+
 - stdin forwarder
+- Add version to the protocol so that I can handle breaking changes on the
+  server side with clients sending different versions.
 
 ## Frontend
 
@@ -10,16 +44,11 @@
   taking up a ton of space. They're both nice for filtering, but maybe they
   should go on the right instead of the left?
 - Wire the json view up to the dark/light mode selector.
-- Add routing that can target state like row and sidebar
+- Add routing that can target state like row and sidebar.
+  - I don't want to link to a specific row in the infinite scroll, as that will
+    be out of date quickly. Maybe there should be a "detail" view for a line?
 - Opening the sidebar runs all in the click handler and takes ~200ms. That needs
   to get cleaned up. I assume it is from the JSON.parse().
-
-### Bugs
-
-- Applying a filter and then removing it causes some rows to be "new", mostly
-  based on whether they were in the data previously or not. Is there a more
-  reliable way to mark "newly received to the database" rows? Maybe just use the
-  damn database timestamp to manage the animation? Is that insane? It is insane.
 
 ### Testing
 
@@ -67,6 +96,7 @@
 
 - I get a toast when I set the debug namespace and have a fixture applied. Maybe
   the setEffect is too broad?
+-
 
 ### Error Handling
 

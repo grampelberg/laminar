@@ -99,6 +99,12 @@ impl Default for Process {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Claims {
+    pub display_name: Option<String>,
+    pub process: Process,
+}
+
 // TODO: move into its own crate
 #[derive(Debug, Deserialize, Serialize, bon::Builder)]
 pub struct Record {

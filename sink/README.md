@@ -152,3 +152,5 @@ If you'd like to test without `StrictMode`, set `VITE_STRICT_MODE=false`.
 - Maybe something with "stream" in it? There's something interesting about
   "tributaries" being joined together into something bigger? Could also go with
   fishing, as in looking for something valuable from streams.
+- Is there something humorous that can be a play on "sink"? As in "the kitchen
+  sink"?

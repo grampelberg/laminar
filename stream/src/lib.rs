@@ -26,7 +26,7 @@ const DROP_TARGET: &str = "inspector::drop";
 
 pub struct Writer {
     rx: Receiver<Record>,
-    remote: Option<EndpointAddr>,
+    config: LayerConfig,
 }
 
 async fn run_with_driver(
@@ -71,7 +71,9 @@ impl Writer {
 
         let _drop = span.enter();
 
-        let Some(addr) = self.remote else {
+        let Some(addr): Option<EndpointAddr> =
+            self.config.remote.map(Into::into)
+        else {
             tracing::warn!("disabling writer, no address configured");
             return Ok(tokio::spawn(async {}));
         };
@@ -83,7 +85,10 @@ impl Writer {
             .endpoint(endpoint)
             .opts(opts.clone())
             .address(addr)
-            .identity(Process::default())
+            .identity(Claims {
+                display_name: self.config.display_name,
+                process: Process::default(),
+            })
             .build()
             .into_driver();
 
@@ -130,10 +135,7 @@ impl InspectorLayerBuilder {
                 tx,
                 disabled: config.remote.is_none(),
             },
-            Writer {
-                rx,
-                remote: config.remote.map(Into::into),
-            },
+            Writer { rx, config },
         ))
     }
 }

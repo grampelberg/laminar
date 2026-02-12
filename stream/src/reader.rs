@@ -14,7 +14,7 @@ use tracing::Instrument;
 
 use crate::{
     DROP_TARGET, Record,
-    api::Process,
+    api::Claims,
     config::{Config, ReaderConfig},
     sink,
 };
@@ -73,7 +73,7 @@ impl ReaderBuilder {
 // See the sink tests for more in-depth tests for the server side of the sink
 // itself.
 pub struct Reader {
-    rx: Receiver<sink::Response<Process, Record>>,
+    rx: Receiver<sink::Response<Claims, Record>>,
     router: Router,
 }
 
@@ -110,7 +110,7 @@ impl Drop for Reader {
 }
 
 impl Stream for Reader {
-    type Item = sink::Response<Process, Record>;
+    type Item = sink::Response<Claims, Record>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,

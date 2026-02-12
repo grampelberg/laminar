@@ -19,12 +19,21 @@ export interface _SqlxMigrations {
   version: string | null
 }
 
-export interface Processes {
+export interface Identity {
+  display_name: string | null
   hostname: string
   name: string
   pid: number
   pk: Generated<number>
   start_ms: number
+  writer_id: string
+}
+
+export interface Events {
+  id: Generated<number>
+  identity_pk: number
+  kind: number
+  received_ms: number
 }
 
 export interface Records {
@@ -37,16 +46,16 @@ export interface Records {
   module_path: string | null
   name: string
   parent_span_id: number | null
-  process_pk: number
+  identity_pk: number
   received_ms: number
   span_id: number | null
   target: string
   ts_ms: number
-  writer_id: string
 }
 
 export interface DB {
   _sqlx_migrations: _SqlxMigrations
-  processes: Processes
+  events: Events
+  identity: Identity
   records: Records
 }

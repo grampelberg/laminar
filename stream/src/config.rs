@@ -17,6 +17,7 @@ pub struct LayerConfig {
     // an RemoteStateActorStoppedError. There needs to be a better validator
     // here because the error is extremely weird when it gets to the driver.
     pub remote: Option<PublicKey>,
+    pub display_name: Option<String>,
 }
 
 impl Default for LayerConfig {
