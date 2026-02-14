@@ -2,11 +2,11 @@ import { useMotionValue, useMotionValueEvent, useSpring } from 'framer-motion'
 import { useAtomValue } from 'jotai'
 import { useEffect, useRef } from 'react'
 
-import { totalRowsAtom } from '@/db'
+import { totalAtom } from '@/records/data.tsx'
 
 // This should realistically be its own counting component as this point.
 export const RowCount = () => {
-  const total = useAtomValue(totalRowsAtom)
+  const total = useAtomValue(totalAtom)
   const colorRef = useRef<HTMLSpanElement>(null)
   const motionTotal = useMotionValue(total)
   const springTotal = useSpring(motionTotal, {

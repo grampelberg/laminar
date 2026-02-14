@@ -3,15 +3,12 @@ import { URL, fileURLToPath } from 'node:url'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vite'
 
 const host = process.env.TAURI_DEV_HOST
 
-// https://vite.dev/config/
 export default defineConfig(async () => ({
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
   plugins: [
     react({
@@ -25,8 +22,20 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '^': fileURLToPath(new URL('./', import.meta.url)),
+      '~': fileURLToPath(new URL('./', import.meta.url)),
     },
+  },
+  optimizeDeps: {
+    include: [
+      'react-dom/client',
+      'wouter',
+      'react-hotkeys-hook',
+      'sonner',
+      'cmdk',
+      'jotai-devtools',
+      'neverthrow',
+      'zod',
+    ],
   },
 
   // 2. tauri expects a fixed port, fail if that port is not available
@@ -44,6 +53,17 @@ export default defineConfig(async () => ({
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ['**/src-tauri/**'],
+    },
+  },
+  test: {
+    setupFiles: ['./vitest.setup.ts'],
+    fileParallelism: false,
+    browser: {
+      enabled: true,
+      provider: playwright({
+        persistentContext: true,
+      }),
+      instances: [{ browser: 'chromium' }],
     },
   },
 }))

@@ -75,5 +75,13 @@
     "builtin": true
   },
   "globals": {},
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      "rules": {
+        "eslint/no-magic-numbers": "off"
+      }
+    }
+  ],
   "ignorePatterns": ["**/fixtures/**", "src/types/db.d.ts"]
 }

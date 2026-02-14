@@ -1,6 +1,6 @@
 import { debug } from 'debug'
 
-export const log = (path: string) => {
+export const getLogger = (path: string) => {
   const modulePath =
     path
       .split('src/')

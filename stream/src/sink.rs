@@ -5,9 +5,7 @@ use std::{sync::Arc, time::Duration};
 use eyre::Result;
 use iroh::{
     Endpoint, EndpointAddr, EndpointId,
-    endpoint::{
-        Connection, RecvStream,
-    },
+    endpoint::{Connection, RecvStream},
     protocol::{AcceptError, ProtocolHandler},
 };
 use serde::Serialize;
@@ -54,7 +52,7 @@ impl RecvSink for RecvStream {
 // probably require an eum and different messages. It is probably the correct
 // direction, there's going to need to be some kind of authentication here
 // eventually.
-#[derive(Debug, bon::Builder)]
+#[derive(Clone, Debug, bon::Builder, serde::Serialize)]
 pub struct Response<Assertion, Body> {
     pub identity: Identity<Assertion>,
 
@@ -63,13 +61,24 @@ pub struct Response<Assertion, Body> {
     pub event: ResponseEvent<Body>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct Identity<T> {
+    #[serde(serialize_with = "to_string")]
     pub observed: EndpointId,
     pub assertion: T,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumDiscriminants)]
+fn to_string<S>(
+    value: impl std::fmt::Display,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, EnumDiscriminants, serde::Serialize)]
 #[strum_discriminants(name(ResponseEventKind))]
 #[strum_discriminants(derive(serde::Serialize, serde::Deserialize))]
 #[strum_discriminants(repr(i64))]

@@ -11,33 +11,37 @@ import {
   type DataTableHandle,
   type Viewport,
 } from '@/components/ui/data-table'
+import { cn } from '@/lib/utils'
+import { selectedAtom } from '@/records.tsx'
 import {
   type RecordRow,
-  filtersAtom,
+  stateAtom,
   positionAtom,
-  loadMoreRowsAtom,
-  newRowsAtom,
-  rowsStateAtom,
-} from '@/db.tsx'
-import { cn } from '@/lib/utils'
-import { log } from '@/log'
-import { selectedAtom } from '@/records.tsx'
+  loadMoreAtom,
+  streamUpdateAtom,
+  filtersAtom,
+} from '@/records/data.tsx'
 import { recordsSchema } from '@/records/schema'
+import { getLogger } from '@/utils'
 
-const logger = log(import.meta.url)
+const logger = getLogger(import.meta.url)
 
 const OVERSCAN = 10
 const FLASH_DURATION = 5000
 
+export const __test = {
+  OVERSCAN,
+}
+
 export const RecordsTable = () => {
+  const { rows } = useAtomValue(stateAtom)
   const filters = useAtomValue(filtersAtom)
-  const { hasMore, isLoading, pendingNewRows, rows } =
-    useAtomValue(rowsStateAtom)
   const [selected, setSelected] = useAtom(selectedAtom)
   const dataTableRef = useRef<DataTableHandle>(null)
 
-  const newRows = useSetAtom(newRowsAtom)
-  const loadMoreRows = useSetAtom(loadMoreRowsAtom)
+  useAtom(loadMoreAtom)
+  useAtom(streamUpdateAtom)
+
   const setPosition = useSetAtom(positionAtom)
 
   const table = useReactTable<RecordRow>({
@@ -55,34 +59,14 @@ export const RecordsTable = () => {
 
   const onScroll = useCallback(
     ({ first, last }: Viewport) => {
-      if (isLoading || rows.length === 0) {
-        return
-      }
-
       const position = {
         top: first - OVERSCAN <= 0,
         bottom: last + OVERSCAN >= rows.length,
       }
 
       setPosition(position)
-
-      if (position.top && pendingNewRows) {
-        newRows()
-      }
-
-      if (position.bottom && hasMore) {
-        loadMoreRows()
-      }
     },
-    [
-      hasMore,
-      isLoading,
-      loadMoreRows,
-      newRows,
-      pendingNewRows,
-      rows.length,
-      setPosition,
-    ],
+    [rows.length, setPosition],
   )
 
   const rowProps = (row: TRow<RecordRow>) => {

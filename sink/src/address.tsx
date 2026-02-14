@@ -10,9 +10,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover.tsx'
 import { configAtom } from '@/config.ts'
-import { log } from '@/log.ts'
+import { getLogger } from '@/utils.ts'
 
-const logger = log(import.meta.url)
+const logger = getLogger(import.meta.url)
 
 const CLOSE_POPOVER = 1000
 const PULSE_DURATION = 0.35

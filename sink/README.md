@@ -8,6 +8,41 @@
 - [Tauri](https://v2.tauri.app/start/prerequisites/) - Get all the prerequisites
   installed.
 
+### Run
+
+To run the app:
+
+```bash
+bun tauri dev
+```
+
+To run the dev server only:
+
+```bash
+bun dev
+```
+
+If you'd like to test without `StrictMode`, set `VITE_STRICT_MODE=false`.
+
+### Tests
+
+Tests are written in [vitest](https://vitest.dev) with
+[playwright](https://playwright.dev).
+
+```bash
+bun run test
+```
+
+Note: `bun test` won't work because the browser doesn't get started up.
+
+### Typegen
+
+You can generate types from the database with:
+
+```bash
+just db-tooling
+```
+
 ### Linting/Formatting
 
 We use [Oxlint](https://oxlint.dev) for linting and formatting. There are
@@ -54,8 +89,6 @@ Note: if there is an atom you want to make sure is _not_ settable, set the
 
 ### Storybook
 
-Note: vitest is not wired up.
-
 ```bash
 bun run storybook
 ```
@@ -81,22 +114,6 @@ bun run dev
 You can then reach it by visiting `/design`. Note that there will be javascript
 errors for most normal routes as they're going to be expecting the tauri
 backend.
-
-### Run
-
-To run the app:
-
-```bash
-bun tauri dev
-```
-
-To run the dev server only:
-
-```bash
-bun dev
-```
-
-If you'd like to test without `StrictMode`, set `VITE_STRICT_MODE=false`.
 
 ## Features
 

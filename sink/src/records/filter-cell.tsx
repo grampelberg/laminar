@@ -2,8 +2,8 @@ import { Slot } from '@radix-ui/react-slot'
 import { useSetAtom } from 'jotai'
 import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 
-import { filtersAtom, type RecordFilter } from '@/db'
 import { cn } from '@/lib/utils'
+import { filtersAtom, type RecordFilter } from '@/records/data.tsx'
 
 export const FilterCell = ({
   children,

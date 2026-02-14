@@ -33,8 +33,11 @@ import {
   TableRow,
 } from '@/components/ui/table.tsx'
 import { cn, px, memo } from '@/lib/utils.ts'
+import { getLogger } from '@/utils.ts'
 
 import { ScrollArea } from './scroll-area'
+
+const logger = getLogger(import.meta.url)
 
 const DEFAULT_ROW_HEIGHT = 40
 

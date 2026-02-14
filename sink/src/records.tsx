@@ -1,13 +1,13 @@
 import { atom, useAtomValue } from 'jotai'
 
-import type { RecordRow } from '@/db.tsx'
 import { cn } from '@/lib/utils'
-import { log } from '@/log.ts'
+import { getLogger } from '@/utils.ts'
 import { Controls } from '@/records/controls.tsx'
+import type { RecordRow } from '@/records/data.tsx'
 import { Fields } from '@/records/fields.tsx'
 import { RecordsTable } from '@/records/table.tsx'
 
-const logger = log(import.meta.url)
+const logger = getLogger(import.meta.url)
 
 export const selectedAtom = atom<RecordRow | undefined>(undefined)
 

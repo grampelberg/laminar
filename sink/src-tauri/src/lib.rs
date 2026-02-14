@@ -17,7 +17,7 @@ use tracing_subscriber::{
 use crate::stream::RecordStream;
 
 const DB_NAME: &'static str = "inspector.db";
-pub(crate) const REFRESH_EVENT: &str = "got_envelope";
+pub(crate) const ON_EVENT: &str = "got_event";
 
 #[tauri::command]
 fn get_config(state: tauri::State<'_, AppData>) -> Config {

@@ -39,7 +39,7 @@ export type PrimitiveItem = z.infer<typeof primitiveSchema>
 export type DerivedItem = z.infer<typeof derivedSchema>
 
 export const allFixtures = import.meta.glob<{ default: Fixture }>(
-  '^/fixtures/**/*.ts',
+  '~/fixtures/**/*.ts',
 )
 
 export const toName = (path: string) => {

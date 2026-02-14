@@ -2,13 +2,17 @@ use std::path::PathBuf;
 
 use eyre::Result;
 use futures::StreamExt;
-use inspector::{config::ReaderConfig, sink::ResponseEventKind, Reader};
+use inspector::{
+    config::ReaderConfig,
+    sink::{ResponseEvent, ResponseEventKind},
+    Reader,
+};
 use iroh::SecretKey;
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Row, Sqlite};
 use tauri::{AppHandle, Emitter};
 use tracing::Instrument;
 
-use crate::{record::WithSql, throttle::Throttle, REFRESH_EVENT};
+use crate::{record::WithSql, throttle::Throttle, ON_EVENT};
 
 #[derive(bon::Builder)]
 pub struct RecordStream {
@@ -45,9 +49,16 @@ impl RecordStream {
         let mut throttle = Throttle::default();
 
         while let Some(msg) = reader.next().await {
-            let kind = ResponseEventKind::from(&msg.event);
+            match &msg.event {
+                ResponseEvent::Data(body) => {
+                    throttle.throttled(|| self.handle.emit(ON_EVENT, &msg))?;
+                }
+                ResponseEvent::Connect | ResponseEvent::Disconnect => {
+                    self.handle.emit(ON_EVENT, &msg)?;
+                }
+            }
+
             let id: i64 = msg.insert(&pool).await?.get("id");
-            throttle.throttled(|| self.handle.emit(REFRESH_EVENT, kind))?;
             tracing::info!("inserted {id}");
         }
 

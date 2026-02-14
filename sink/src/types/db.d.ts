@@ -3,59 +3,58 @@
  * Please do not edit it manually.
  */
 
-import type { ColumnType } from 'kysely'
+import type { ColumnType } from "kysely";
 
-export type Generated<T> =
-  T extends ColumnType<infer S, infer I, infer U>
-    ? ColumnType<S, I | undefined, U>
-    : ColumnType<T, T | undefined, T>
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
 
 export interface _SqlxMigrations {
-  checksum: Buffer
-  description: string
-  execution_time: string
-  installed_on: Generated<string>
-  success: number
-  version: string | null
-}
-
-export interface Identity {
-  display_name: string | null
-  hostname: string
-  name: string
-  pid: number
-  pk: Generated<number>
-  start_ms: number
-  writer_id: string
+  checksum: Buffer;
+  description: string;
+  execution_time: string;
+  installed_on: Generated<string>;
+  success: number;
+  version: string | null;
 }
 
 export interface Events {
-  id: Generated<number>
-  identity_pk: number
-  kind: number
-  received_ms: number
+  id: Generated<number>;
+  identity_pk: number;
+  kind: number;
+  received_ms: number;
+}
+
+export interface Identity {
+  display_name: string | null;
+  hostname: string;
+  name: string;
+  pid: number;
+  pk: Generated<number>;
+  start_ms: number;
+  writer_id: string;
 }
 
 export interface Records {
-  fields_json: string
-  file: string | null
-  id: Generated<number>
-  kind: number
-  level: number
-  line: number | null
-  module_path: string | null
-  name: string
-  parent_span_id: number | null
-  identity_pk: number
-  received_ms: number
-  span_id: number | null
-  target: string
-  ts_ms: number
+  fields_json: string;
+  file: string | null;
+  id: Generated<number>;
+  identity_pk: number;
+  kind: number;
+  level: number;
+  line: number | null;
+  module_path: string | null;
+  name: string;
+  parent_span_id: number | null;
+  received_ms: number;
+  span_id: number | null;
+  target: string;
+  ts_ms: number;
 }
 
 export interface DB {
-  _sqlx_migrations: _SqlxMigrations
-  events: Events
-  identity: Identity
-  records: Records
+  _sqlx_migrations: _SqlxMigrations;
+  events: Events;
+  identity: Identity;
+  records: Records;
 }

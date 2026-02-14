@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 import { levelName, LevelBadge } from '@/components/level-badge'
 import { Timestamp } from '@/components/timestamp'
-import type { RecordFilter, RecordRow } from '@/db'
+import type { RecordFilter, RecordRow } from '@/records/data'
 
 import { FilterCell } from './filter-cell'
 
@@ -73,7 +73,7 @@ export const recordsSchema = [
 const byAccessor = new Map<string, (typeof recordsSchema)[number]>(
   recordsSchema
     .filter(col => 'accessorKey' in col && typeof col.accessorKey === 'string')
-    .map(col => [col.accessorKey, col]),
+    .map(col => [String(col.accessorKey), col]),
 )
 
 export const filterLabelFor = (filter: RecordFilter): ReactNode => {
