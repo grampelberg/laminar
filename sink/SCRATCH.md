@@ -15,6 +15,8 @@
 
 ## Bugs
 
+- From disconnect to receiving the event appears to be about ~30s. Is there a
+  way to make that faster?
 - There's something weird about endpoints and reconnecting if you've failed in
   the past. I had the app crash on an endpoint and then, even after restarts,
   loadgen refused to connect to that endpoint. I made a new key and, voila, it
@@ -54,15 +56,9 @@
 
 - There are a couple interactions that are particularly fragile right now, in
   particular:
-  - The infinite scroll infrastructure.
-  - The db update tooling.
-  - Database queries in general.
   - I'm making some assumptions about ordering and the cursor right now, I want
     a test that validates these assumptions in a way that it _explicitly_ breaks
     if the assumption changes.
-
-  I'm not sure what the right way to test any of it is.
-
 - The table is particularly performance sensitive. Resizing, initial render and
   scrolling can really consume resources. How would I go about having tests to
   at least tell me if there's some regressions here.
@@ -96,7 +92,6 @@
 
 - I get a toast when I set the debug namespace and have a fixture applied. Maybe
   the setEffect is too broad?
--
 
 ### Error Handling
 
@@ -105,6 +100,8 @@
 
 ### Status
 
+- Add heartbeats on the server side so that we can have a reliable way to show
+  connection status even though disconnects can be missed.
 - Need to have "connection status" UI that shows whether a backend is sending
   events. Maybe how many events it is sending?
 - Show how much space the database is taking up. Allow garbage collection as
