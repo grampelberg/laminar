@@ -10,8 +10,8 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import {
-  type ByNameRow,
-  byNameAtom,
+  type SessionRow,
+  sessionsAtom,
   statusAtom,
   statusUpdateAtom,
 } from '@/status/data'
@@ -32,7 +32,7 @@ const Connections = ({
   rows,
   totalConnected,
 }: {
-  rows: ByNameRow[]
+  rows: SessionRow[]
   totalConnected: number
 }) => (
   <>
@@ -78,7 +78,7 @@ export const Status = () => {
   useAtom(statusUpdateAtom)
 
   const { rows: allClients, totalConnected: totalConnections } =
-    useAtomValue(byNameAtom)
+    useAtomValue(sessionsAtom)
   const status = totalConnections > 0 ? 'connected' : 'none'
 
   return (

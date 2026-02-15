@@ -70,26 +70,6 @@ describe('RecordsTable', () => {
         .not.toHaveClass('flash-row')
     })
 
-    it('only updates for data events', async () => {
-      const { store, screen } = await renderTable(
-        queryFixture([
-          state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE + 1),
-          [],
-          [],
-        ]),
-      )
-
-      await emit(EVENT_RECEIVED, {
-        event: 'Connect',
-      })
-      await nextTick()
-
-      expect(store.get(stateAtom).rows.length).toBeGreaterThan(0)
-      expect(screen.container.querySelector('tbody')).not.toHaveTextContent(
-        'No Results',
-      )
-    })
-
     it('only updates at the top', async () => {
       const { store, screen, spy } = await renderTable(() =>
         state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE + 1),

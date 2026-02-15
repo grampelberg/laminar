@@ -39,13 +39,13 @@ CREATE TABLE records (
   CHECK(kind != 1 OR span_id IS NOT NULL)      -- spans must have span_id
 );
 
-CREATE TABLE events (
-  id            INTEGER NOT NULL PRIMARY KEY,
-  identity_pk   INTEGER NOT NULL REFERENCES identity(pk),
-  kind          INTEGER NOT NULL,
-  received_ms   INTEGER NOT NULL,
-
-  CHECK(kind IN (0,1))
+CREATE TABLE sessions (
+  session_id      TEXT    NOT NULL PRIMARY KEY,
+  identity_pk     INTEGER NOT NULL REFERENCES identity(pk),
+  connected_at    INTEGER NOT NULL,
+  last_seen_at    INTEGER NOT NULL,
+  disconnected_at INTEGER,
+  reason          INTEGER
 );
 
 -- Unique span ids within an identity (events can reuse span_id; partial index avoids that)
@@ -67,5 +67,5 @@ CREATE INDEX events_in_span
   ON records(identity_pk, span_id, ts_ms)
   WHERE kind = 0;
 
-CREATE INDEX events_by_identity
-  ON events(identity_pk, received_ms);
+CREATE INDEX sessions_by_identity
+  ON sessions(identity_pk, last_seen_at);

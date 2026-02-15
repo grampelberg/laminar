@@ -4,21 +4,18 @@ import { atomWithRefresh, unwrap } from 'jotai/utils'
 
 import { dbAtom } from '@/db'
 import { streamAtom } from '@/stream.tsx'
-import { getLogger } from '@/utils'
 
-import byName from './by_name.sql?raw'
+import sessionsQuery from './recent_sessions.sql?raw'
 
-const logger = getLogger(import.meta.url)
-
-export interface ByNameRow {
+export interface SessionRow {
   current_connections: number
   last_seen: number
   name: string
   total_clients: number
 }
 
-export interface ByNameResult {
-  rows: ByNameRow[]
+export interface SessionsResult {
+  rows: SessionRow[]
   totalConnected: number
 }
 
@@ -34,28 +31,26 @@ export const statusAtom = unwrap(
     },
 )
 
-export const byNameAtom = atomWithRefresh(async get => {
+export const sessionsAtom = atomWithRefresh(async get => {
   const db = await get(dbAtom)
-  const [val] = await db.select<{ payload?: string }[]>(byName)
+  const [val] = await db.select<{ payload?: string }[]>(sessionsQuery)
   if (!val?.payload) {
-    return { rows: [], totalConnected: 0 } satisfies ByNameResult
+    return { rows: [], totalConnected: 0 } satisfies SessionsResult
   }
 
-  return JSON.parse(val.payload) as ByNameResult
+  return JSON.parse(val.payload) as SessionsResult
 })
 
 export const statusUpdateAtom = atomEffect((get, set) => {
   void (async () => {
-    const ev = get(streamAtom)
-    const event = (ev as { event?: unknown } | undefined)?.event
-    const isUpdate = event === 'Connect' || event === 'Disconnect'
+    const signal = get(streamAtom)
+    const shouldUpdate = signal > 0
 
-    if (!isUpdate) {
+    if (!shouldUpdate) {
       return
     }
 
-    set(byNameAtom)
-    set(rawStatusAtom)
-    logger('refresh by_name', event)
+    set(sessionsAtom)
+    set(statusAtom)
   })()
 })

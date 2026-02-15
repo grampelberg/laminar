@@ -1,11 +1,29 @@
 use inspector::{
-    Claims, Record, sink::Identity, sink::ResponseEvent,
-    sink::ResponseEventKind,
+    sink::{DisconnectReason, Identity, ResponseEvent},
+    Claims, Record,
 };
-use sqlx::{sqlite::SqliteRow, Pool, Row, Sqlite};
+use sqlx::{Pool, Row, Sqlite};
 
 pub trait WithSql {
-    async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<SqliteRow>;
+    async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()>;
+}
+
+pub async fn close_open_sessions(
+    pool: &Pool<Sqlite>,
+) -> sqlx::Result<u64> {
+    let result = sqlx::query(
+        r#"
+        UPDATE sessions
+        SET disconnected_at = last_seen_at,
+            reason = ?
+        WHERE disconnected_at IS NULL
+        "#,
+    )
+    .bind(DisconnectReason::ServerShutdown as i64)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
 }
 
 async fn insert_record_data(
@@ -13,7 +31,7 @@ async fn insert_record_data(
     identity_pk: i64,
     received_at: i64,
     body: &Record,
-) -> sqlx::Result<SqliteRow> {
+) -> sqlx::Result<()> {
     sqlx::query(
         r#"
         INSERT INTO records (
@@ -32,7 +50,6 @@ async fn insert_record_data(
           fields_json
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING id
         "#,
     )
     .bind(identity_pk)
@@ -48,36 +65,51 @@ async fn insert_record_data(
     .bind(body.metadata.line.map(|v| v as i64))
     .bind(body.metadata.module_path.as_deref())
     .bind(&body.fields)
-    .fetch_one(pool)
-    .await
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
 
-async fn insert_connection_event(
+async fn upsert_connected_session(
     pool: &Pool<Sqlite>,
+    session_id: &str,
     identity_pk: i64,
     received_at: i64,
-    kind: i64,
-) -> sqlx::Result<SqliteRow> {
+    disconnected_at: Option<i64>,
+    reason: Option<i64>,
+) -> sqlx::Result<()> {
     sqlx::query(
         r#"
-        INSERT INTO events (
+        INSERT INTO sessions (
+          session_id,
           identity_pk,
-          kind,
-          received_ms
+          connected_at,
+          last_seen_at,
+          disconnected_at,
+          reason
         )
-        VALUES (?, ?, ?)
-        RETURNING id
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_id) DO UPDATE SET
+          last_seen_at = excluded.last_seen_at,
+          disconnected_at = excluded.disconnected_at,
+          reason = excluded.reason
         "#,
     )
+    .bind(session_id)
     .bind(identity_pk)
-    .bind(kind)
     .bind(received_at as i64)
-    .fetch_one(pool)
-    .await
+    .bind(received_at as i64)
+    .bind(disconnected_at)
+    .bind(reason)
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
 
 impl WithSql for Identity<Claims> {
-    async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<SqliteRow> {
+    async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
         let writer_id = self.observed.to_string();
 
         sqlx::query(
@@ -95,7 +127,15 @@ impl WithSql for Identity<Claims> {
         .execute(pool)
         .await?;
 
-        sqlx::query(
+        Ok(())
+    }
+}
+
+impl WithSql for inspector::sink::Response<Claims, Record> {
+    async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
+        self.identity.insert(pool).await?;
+        let writer_id = self.identity.observed.to_string();
+        let identity_pk: i64 = sqlx::query(
             r#"
             SELECT pk
             FROM identity
@@ -103,32 +143,36 @@ impl WithSql for Identity<Claims> {
             "#,
         )
         .bind(writer_id)
-        .bind(self.assertion.process.pid as i64)
-        .bind(&self.assertion.process.name)
-        .bind(&self.assertion.process.hostname)
-        .bind(self.assertion.process.start as i64)
+        .bind(self.identity.assertion.process.pid as i64)
+        .bind(&self.identity.assertion.process.name)
+        .bind(&self.identity.assertion.process.hostname)
+        .bind(self.identity.assertion.process.start as i64)
         .fetch_one(pool)
-        .await
-    }
-}
+        .await?
+        .get("pk");
 
-impl WithSql for inspector::sink::Response<Claims, Record> {
-    async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<SqliteRow> {
-        let identity_pk: i64 = self.identity.insert(pool).await?.get("pk");
+        let (disconnected_at, reason) = match &self.event {
+            ResponseEvent::Disconnect(reason) => {
+                (Some(self.received_at), Some(*reason as i64))
+            }
+            _ => (None, None),
+        };
 
-        match &self.event {
-            ResponseEvent::Data(body) => {
-                insert_record_data(pool, identity_pk, self.received_at, body).await
-            }
-            event @ (ResponseEvent::Connect | ResponseEvent::Disconnect) => {
-                insert_connection_event(
-                    pool,
-                    identity_pk,
-                    self.received_at,
-                    ResponseEventKind::from(event) as i64,
-                )
-                .await
-            }
+        upsert_connected_session(
+            pool,
+            &self.session_id.to_string(),
+            identity_pk,
+            self.received_at,
+            disconnected_at,
+            reason,
+        )
+        .await?;
+
+        if let ResponseEvent::Data(body) = &self.event {
+            insert_record_data(pool, identity_pk, self.received_at, body)
+                .await?;
         }
+
+        Ok(())
     }
 }

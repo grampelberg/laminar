@@ -1,11 +1,13 @@
 mod driver;
+mod session;
 
 use std::{sync::Arc, time::Duration};
 
 use eyre::Result;
+use futures::{StreamExt, stream};
 use iroh::{
     Endpoint, EndpointAddr, EndpointId,
-    endpoint::{Connection, RecvStream},
+    endpoint::{Accept, Connection, RecvStream},
     protocol::{AcceptError, ProtocolHandler},
 };
 use serde::Serialize;
@@ -15,45 +17,21 @@ use tokio::{
     sync::{broadcast, mpsc},
 };
 use tracing::Instrument;
+use uuid::Uuid;
 
 use crate::api;
 
-const MAX_RECORD_BYTES: usize = 1024 * 1024;
-
 pub const ALPN: &[u8] = b"inspector/sink/0";
 
-type BoxError = Box<dyn std::error::Error + Send + Sync>;
+pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 pub(crate) use driver::Driver;
+use session::Session;
 
-trait RecvSink {
-    async fn receive_request<T>(&mut self) -> Result<Option<T>, BoxError>
-    where
-        T: serde::de::DeserializeOwned;
-}
-
-impl RecvSink for RecvStream {
-    async fn receive_request<T>(&mut self) -> Result<Option<T>, BoxError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let Ok(frame) = self.read_u16().await else {
-            return Ok(None);
-        };
-
-        let mut buf = vec![0u8; frame as usize];
-        self.read_exact(&mut buf).await?;
-
-        Ok(Some(postcard::from_bytes(&buf)?))
-    }
-}
-
-// On the receiver side, it would be more efficient to fetch/store the process
-// information separately from the rest of the response. That, however, would
-// probably require an eum and different messages. It is probably the correct
-// direction, there's going to need to be some kind of authentication here
-// eventually.
 #[derive(Clone, Debug, bon::Builder, serde::Serialize)]
 pub struct Response<Assertion, Body> {
+    #[serde(serialize_with = "to_string")]
+    #[builder(default = Uuid::new_v4())]
+    pub session_id: Uuid,
     pub identity: Identity<Assertion>,
 
     #[builder(default = api::now())]
@@ -78,14 +56,60 @@ where
     serializer.serialize_str(&value.to_string())
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumDiscriminants, serde::Serialize)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    EnumDiscriminants,
+    serde::Serialize,
+    strum::IntoStaticStr,
+)]
 #[strum_discriminants(name(ResponseEventKind))]
 #[strum_discriminants(derive(serde::Serialize, serde::Deserialize))]
 #[strum_discriminants(repr(i64))]
 pub enum ResponseEvent<T> {
     Connect,
-    Disconnect,
+    Heartbeat,
+    Disconnect(DisconnectReason),
     Data(T),
+}
+
+impl<T> ResponseEvent<T> {
+    pub(crate) fn labels(&self) -> Vec<(&'static str, &'static str)> {
+        let mut labels = vec![("event", self.into())];
+
+        if let Self::Disconnect(reason) = *self {
+            labels.extend(reason.labels());
+        }
+
+        labels
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::IntoStaticStr,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum DisconnectReason {
+    Graceful = 0,
+    Timeout = 1,
+    ServerShutdown = 2,
+    CrashRecovery = 3,
+    TransportError = 4,
+}
+
+impl DisconnectReason {
+    pub(crate) fn labels(&self) -> Vec<(&'static str, &'static str)> {
+        vec![("reason", self.into())]
+    }
 }
 
 #[derive(bon::Builder)]
@@ -129,6 +153,22 @@ impl<Assertion, Body> Sink<Assertion, Body> {
     }
 }
 
+async fn get_frame<Body>(
+    mut byte_stream: RecvStream,
+) -> Result<Option<(Body, RecvStream)>, BoxError>
+where
+    Body: serde::de::DeserializeOwned,
+{
+    let Ok(frame) = byte_stream.read_u16().await else {
+        return Ok(None);
+    };
+
+    let mut buf = vec![0u8; frame as usize];
+    byte_stream.read_exact(&mut buf).await?;
+
+    Ok(Some((postcard::from_bytes(&buf)?, byte_stream)))
+}
+
 #[derive(Debug)]
 pub struct SinkHandler<Assertion, Body> {
     emit: mpsc::Sender<Response<Assertion, Body>>,
@@ -146,6 +186,11 @@ where
 {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         metrics::counter!("sink.accept_connection").increment(1);
+        metrics::gauge!("sink.active_connections").increment(1);
+        scopeguard::defer! {
+            metrics::gauge!("sink.active_connections").decrement(1);
+        }
+
         let peer = connection.remote_id();
 
         // 1. Open a single unidirection stream to push everything over
@@ -154,7 +199,7 @@ where
         // 3. Emit connect event.
         // 4. Subsequent frames are data messages.
         // 5. Emit disconnect event when the stream closes.
-        while let Some(mut stream) = connection
+        while let Some(byte_stream) = connection
             .accept_uni()
             .in_current_span()
             .await
@@ -168,9 +213,16 @@ where
             })?
         {
             metrics::counter!("sink.accept_stream").increment(1);
+            metrics::gauge!("sink.active_streams").increment(1);
+            scopeguard::defer! {
+                metrics::gauge!("sink.active_streams").decrement(1);
 
-            let Some(connection_id): Option<Assertion> = stream
-                .receive_request()
+            }
+
+            let Some((assertion, byte_stream)): Option<(
+                Assertion,
+                RecvStream,
+            )> = get_frame(byte_stream)
                 .in_current_span()
                 .await
                 .map_err(AcceptError::from_boxed)?
@@ -178,49 +230,21 @@ where
                 continue;
             };
 
-            let identity = Identity {
-                observed: peer.clone(),
-                assertion: connection_id.clone(),
-            };
+            let msg_stream = stream::try_unfold(byte_stream, |byte_stream| {
+                get_frame(byte_stream).in_current_span()
+            })
+            .boxed();
 
-            self.emit
-                .send(
-                    Response::builder()
-                        .identity(identity.clone())
-                        .event(ResponseEvent::Connect)
-                        .build(),
-                )
-                .await
-                .map_err(AcceptError::from_err)?;
-
-            while let Some(req) = stream
-                .receive_request()
-                .in_current_span()
-                .await
-                .map_err(AcceptError::from_boxed)?
-            {
-                metrics::counter!("sink.message_received").increment(1);
-
-                self.emit
-                    .send(
-                        Response::builder()
-                            .identity(identity.clone())
-                            .event(ResponseEvent::Data(req))
-                            .build(),
-                    )
-                    .await
-                    .map_err(AcceptError::from_err)?;
-            }
-
-            self.emit
-                .send(
-                    Response::builder()
-                        .identity(identity)
-                        .event(ResponseEvent::Disconnect)
-                        .build(),
-                )
-                .await
-                .map_err(AcceptError::from_err)?;
+            Session::builder()
+                .identity(Identity {
+                    observed: peer.clone(),
+                    assertion,
+                })
+                .stream(msg_stream)
+                .emit(self.emit.clone())
+                .build()
+                .run()
+                .await?;
         }
 
         Ok(())

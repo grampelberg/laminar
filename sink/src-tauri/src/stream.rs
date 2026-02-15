@@ -2,17 +2,17 @@ use std::path::PathBuf;
 
 use eyre::Result;
 use futures::StreamExt;
-use inspector::{
-    config::ReaderConfig,
-    sink::{ResponseEvent, ResponseEventKind},
-    Reader,
-};
+use inspector::{config::ReaderConfig, Reader};
 use iroh::SecretKey;
-use sqlx::{sqlite::SqliteConnectOptions, Pool, Row, Sqlite};
+use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite};
 use tauri::{AppHandle, Emitter};
 use tracing::Instrument;
 
-use crate::{record::WithSql, throttle::Throttle, ON_EVENT};
+use crate::{
+    record::{close_open_sessions, WithSql},
+    throttle::Throttle,
+    ON_EVENT,
+};
 
 #[derive(bon::Builder)]
 pub struct RecordStream {
@@ -40,6 +40,10 @@ impl RecordStream {
     #[tracing::instrument(skip_all, err)]
     async fn run(self) -> Result<()> {
         let pool = connect(self.db_path).await?;
+        let closed = close_open_sessions(&pool).await?;
+        if closed > 0 {
+            tracing::info!(closed, "closed stale sessions on startup");
+        }
 
         let mut reader = Reader::builder()
             .config(self.config)
@@ -49,17 +53,11 @@ impl RecordStream {
         let mut throttle = Throttle::default();
 
         while let Some(msg) = reader.next().await {
-            match &msg.event {
-                ResponseEvent::Data(body) => {
-                    throttle.throttled(|| self.handle.emit(ON_EVENT, &msg))?;
-                }
-                ResponseEvent::Connect | ResponseEvent::Disconnect => {
-                    self.handle.emit(ON_EVENT, &msg)?;
-                }
-            }
+            throttle.throttled(|| self.handle.emit(ON_EVENT, ()))?;
 
-            let id: i64 = msg.insert(&pool).await?.get("id");
-            tracing::info!("inserted {id}");
+            msg.insert(&pool).await?;
+
+            tracing::debug!("received message")
         }
 
         Ok(())

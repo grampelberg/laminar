@@ -9,13 +9,13 @@ export const __test = {
 }
 
 export const streamAtom = withAtomEffect(
-  atom<unknown | undefined>(undefined),
+  atom(0),
   (_get, set) => {
     let alive = true
     let stop: UnlistenFn | undefined = undefined
     ;(async () => {
-      stop = await listen(EVENT_RECEIVED, event => {
-        set(streamAtom, event.payload)
+      stop = await listen(EVENT_RECEIVED, () => {
+        set(streamAtom, prev => prev + 1)
       })
 
       if (!alive) {

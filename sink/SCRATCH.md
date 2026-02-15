@@ -40,6 +40,16 @@
 - Add version to the protocol so that I can handle breaking changes on the
   server side with clients sending different versions.
 
+### Protocol Details
+
+- There's a built-in peer_identity for connections. This looks to be pretty
+  crypto-centric, is there any reason to use this over the assertion/observed
+  identity setup that exists now?
+- There's a decent amount of stats for a connection, rtt and packet data at
+  least. Does this lend itself to a panel that shows what's going on? Maybe fun
+  but not especially actionable or useful. A better way to approach this is "how
+  can I show what's going on at a high level?"
+
 ## Frontend
 
 - I'm not sure source or level are especially helpful. The source is definitely

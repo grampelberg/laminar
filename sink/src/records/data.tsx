@@ -208,12 +208,10 @@ export const markAdded = (
 export const streamUpdateAtom = atomEffect((get, set) => {
   void (async () => {
     const { top } = get(positionAtom)
-    const ev = get(streamAtom)
-    const event = (ev as { event?: unknown } | undefined)?.event
-    const isUpdate =
-      top && typeof event === 'object' && event !== null && 'Data' in event
+    const signal = get(streamAtom)
+    const shouldUpdate = top && signal > 0
 
-    if (!isUpdate) {
+    if (!shouldUpdate) {
       return
     }
 
