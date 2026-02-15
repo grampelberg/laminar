@@ -35,7 +35,7 @@ export const dbAtom = atom(async get => {
 
   logger('config', cfg)
 
-  return await Database.load(cfg.dbUrl)
+  return await Database.load(cfg.db.url)
 })
 
 export const execute = async <Row,>(

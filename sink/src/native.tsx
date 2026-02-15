@@ -2,8 +2,8 @@ import { Suspense } from 'react'
 
 import { AddressButton } from '@/address.tsx'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler.tsx'
-import { Status } from '@/connection/status.tsx'
 import { Records } from '@/records.tsx'
+import { Status } from '@/status.tsx'
 
 if (!globalThis.window.isTauri) {
   const mod = await import('@/dev/mock.ts')

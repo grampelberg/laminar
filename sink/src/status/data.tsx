@@ -1,5 +1,6 @@
+import { invoke } from '@tauri-apps/api/core'
 import { atomEffect } from 'jotai-effect'
-import { atomWithRefresh } from 'jotai/utils'
+import { atomWithRefresh, unwrap } from 'jotai/utils'
 
 import { dbAtom } from '@/db'
 import { streamAtom } from '@/stream.tsx'
@@ -20,6 +21,18 @@ export interface ByNameResult {
   rows: ByNameRow[]
   totalConnected: number
 }
+
+export interface Status {
+  dbSize: number
+}
+
+export const statusAtom = unwrap(
+  atomWithRefresh(async () => await invoke<Status>('get_status')),
+  prev =>
+    prev ?? {
+      dbSize: 0,
+    },
+)
 
 export const byNameAtom = atomWithRefresh(async get => {
   const db = await get(dbAtom)
@@ -42,6 +55,7 @@ export const statusUpdateAtom = atomEffect((get, set) => {
     }
 
     set(byNameAtom)
+    set(rawStatusAtom)
     logger('refresh by_name', event)
   })()
 })

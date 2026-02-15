@@ -49,7 +49,10 @@ export const dispatchInvoke =
         ? resolve(stub.config, cmd, args)
         : {
             address: '',
-            dbUrl: '',
+            db: {
+              path: '',
+              url: '',
+            },
           }
     }
   }

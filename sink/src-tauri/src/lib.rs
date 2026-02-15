@@ -24,6 +24,21 @@ fn get_config(state: tauri::State<'_, AppData>) -> Config {
     state.config.clone()
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Status {
+    db_size: u64,
+}
+
+#[tauri::command]
+fn get_status(state: tauri::State<'_, AppData>) -> tauri::Result<Status> {
+    let meta = std::fs::metadata(&state.config.db.path)?;
+
+    Ok(Status {
+        db_size: meta.len(),
+    })
+}
+
 #[cfg(debug_assertions)]
 fn enable_devtools(window: WebviewWindow<Wry>) {
     window.open_devtools();
@@ -80,13 +95,13 @@ fn load_config(config_path: &PathBuf) -> Result<(LayerConfig, ReaderConfig)> {
     Ok((layer, reader))
 }
 
-fn db_config(storage: &Storage) -> Result<(PathBuf, String)> {
+fn db_config(storage: &Storage) -> Result<DbConfig> {
     std::fs::create_dir_all(&storage.data)?;
     let path = storage.data.join(DB_NAME);
     let url =
         format!("sqlite:{}", storage.relative_data(&path)?.to_string_lossy());
 
-    Ok((path, url))
+    Ok(DbConfig { path, url })
 }
 
 struct Storage {
@@ -126,16 +141,34 @@ impl std::fmt::Debug for Storage {
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DbConfig {
+    #[serde(serialize_with = "serialize_path")]
+    path: PathBuf,
+    url: String,
+}
+
+fn serialize_path<S>(
+    path: &PathBuf,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(path.to_string_lossy().as_ref())
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Config {
     address: String,
-    db_url: String,
+    db: DbConfig,
 }
 
 impl Config {
-    fn new(address: EndpointId, db_url: String) -> Self {
+    fn new(address: EndpointId, db: DbConfig) -> Self {
         Self {
             address: address.to_string(),
-            db_url,
+            db,
         }
     }
 }
@@ -174,17 +207,17 @@ pub fn run() {
                     .expect("there's a main window"),
             );
 
-            let (db_path, db_url) = db_config(&storage)?;
+            let db = db_config(&storage)?;
 
             app.manage(AppData {
-                config: Config::new(key.public(), db_url),
+                config: Config::new(key.public(), db.clone()),
             });
 
-            tracing::info!(path = ?db_path.to_string_lossy(), "db_path");
+            tracing::info!(path = ?db.path.to_string_lossy(), "db_path");
 
             RecordStream::builder()
                 .config(reader_config)
-                .db_path(db_path)
+                .db_path(db.path)
                 .handle(app.handle().clone())
                 .key(key)
                 .build()
@@ -192,7 +225,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_config])
+        .invoke_handler(tauri::generate_handler![get_config, get_status])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

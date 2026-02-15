@@ -104,8 +104,8 @@
   connection status even though disconnects can be missed.
 - Need to have "connection status" UI that shows whether a backend is sending
   events. Maybe how many events it is sending?
-- Show how much space the database is taking up. Allow garbage collection as
-  well?
+- Allow garbage collection for storage.
+- Implement a visual "last seen" for each client.
 
 ### Settings
 
