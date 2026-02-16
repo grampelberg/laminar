@@ -1,6 +1,6 @@
 mod record;
 mod stream;
-mod throttle;
+mod debounce;
 
 use std::path::{Path, PathBuf};
 

@@ -19,8 +19,8 @@ WITH
         CASE
           WHEN disconnected_at IS NULL THEN 1
         END
-      ) AS current_connections,
-      COUNT(DISTINCT identity_pk) AS total_clients
+      ) AS current,
+      COUNT(DISTINCT identity_pk) AS total
     FROM
       recent_sessions
     GROUP BY
@@ -28,8 +28,8 @@ WITH
   )
 SELECT
   json_object(
-    'totalConnected',
-    coalesce(SUM(current_connections), 0),
+    'total',
+    coalesce(SUM(current), 0),
     'rows',
     coalesce(
       json_group_array(
@@ -38,10 +38,10 @@ SELECT
           name,
           'last_seen',
           last_seen,
-          'current_connections',
-          current_connections,
-          'total_clients',
-          total_clients
+          'current',
+          current,
+          'total',
+          total
         )
       ),
       json('[]')

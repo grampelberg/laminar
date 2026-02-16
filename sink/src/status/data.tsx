@@ -8,15 +8,15 @@ import { streamAtom } from '@/stream.tsx'
 import sessionsQuery from './recent_sessions.sql?raw'
 
 export interface SessionRow {
-  current_connections: number
+  current: number
   last_seen: number
   name: string
-  total_clients: number
+  total: number
 }
 
 export interface SessionsResult {
   rows: SessionRow[]
-  totalConnected: number
+  total: number
 }
 
 export interface Status {
@@ -35,7 +35,7 @@ export const sessionsAtom = atomWithRefresh(async get => {
   const db = await get(dbAtom)
   const [val] = await db.select<{ payload?: string }[]>(sessionsQuery)
   if (!val?.payload) {
-    return { rows: [], totalConnected: 0 } satisfies SessionsResult
+    return { rows: [], total: 0 } satisfies SessionsResult
   }
 
   return JSON.parse(val.payload) as SessionsResult

@@ -1,23 +1,26 @@
 use std::{
     pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
 
 use eyre::Result;
 use futures::Stream;
 use iroh::{
     Endpoint, PublicKey, SecretKey, address_lookup::MdnsAddressLookup,
-    protocol::Router,
+    endpoint::QuicTransportConfig, protocol::Router,
 };
 use tokio::sync::mpsc::Receiver;
 use tracing::Instrument;
 
 use crate::{
-    DROP_TARGET, Record,
+    Record,
     api::Claims,
     config::{Config, ReaderConfig},
     sink,
 };
+
+const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Default)]
 pub struct ReaderBuilder {
@@ -47,7 +50,12 @@ impl ReaderBuilder {
             None => config.key.load_async().await?,
         };
 
+        let transport = QuicTransportConfig::builder()
+            .keep_alive_interval(KEEP_ALIVE_INTERVAL)
+            .build();
+
         let endpoint = Endpoint::builder()
+            .transport_config(transport)
             .secret_key(secret_key)
             .address_lookup(MdnsAddressLookup::builder())
             .bind()

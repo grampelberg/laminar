@@ -9,8 +9,8 @@ use tauri::{AppHandle, Emitter};
 use tracing::Instrument;
 
 use crate::{
+    debounce::Debounce,
     record::{close_open_sessions, WithSql},
-    throttle::Throttle,
     ON_EVENT,
 };
 
@@ -50,14 +50,20 @@ impl RecordStream {
             .key(self.key)
             .build()
             .await?;
-        let mut throttle = Throttle::default();
+        let mut debounce = Debounce::default();
 
-        while let Some(msg) = reader.next().await {
-            throttle.throttled(|| self.handle.emit(ON_EVENT, ()))?;
+        loop {
+            tokio::select! {
+                Some(msg) = reader.next() => {
+                    msg.insert(&pool).await?;
+                    debounce.trigger();
 
-            msg.insert(&pool).await?;
-
-            tracing::debug!("received message")
+                    tracing::debug!("received message");
+                }
+                _ = debounce.ready() => {
+                    self.handle.emit(ON_EVENT, ())?;
+                }
+            }
         }
 
         Ok(())

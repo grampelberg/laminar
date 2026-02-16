@@ -1,4 +1,5 @@
 import { cva } from 'class-variance-authority'
+import { formatDistanceToNow } from 'date-fns'
 import { filesize } from 'filesize'
 import { useAtom, useAtomValue } from 'jotai'
 
@@ -28,17 +29,11 @@ const statusDot = cva('size-1.5 rounded-full', {
   },
 })
 
-const Connections = ({
-  rows,
-  totalConnected,
-}: {
-  rows: SessionRow[]
-  totalConnected: number
-}) => (
+const Sessions = ({ rows, total }: { rows: SessionRow[]; total: number }) => (
   <>
     <div className="flex items-center justify-between pb-2 text-xs text-muted-foreground">
       <span>Observed Clients</span>
-      <span>{totalConnected} connected</span>
+      <span>{total} connected</span>
     </div>
     <div className="space-y-1">
       {rows.map(client => (
@@ -47,13 +42,21 @@ const Connections = ({
           key={client.name}
         >
           <span>{client.name}</span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className={statusDot({
-                state: client.current_connections > 0 ? 'connected' : 'none',
-              })}
-            />
-            {client.current_connections}/{client.total_clients}
+          <span className="inline-flex flex-col items-end gap-0.5">
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={statusDot({
+                  state: client.current > 0 ? 'connected' : 'none',
+                })}
+              />
+              {client.current}/{client.total}
+            </span>
+            {client.current === 0 ? (
+              <span className="text-xxs text-muted-foreground/80">
+                last seen{' '}
+                {formatDistanceToNow(client.last_seen, { addSuffix: true })}
+              </span>
+            ) : undefined}
           </span>
         </div>
       ))}
@@ -77,9 +80,8 @@ const Storage = () => {
 export const Status = () => {
   useAtom(statusUpdateAtom)
 
-  const { rows: allClients, totalConnected: totalConnections } =
-    useAtomValue(sessionsAtom)
-  const status = totalConnections > 0 ? 'connected' : 'none'
+  const { rows: allClients, total: totalSessions } = useAtomValue(sessionsAtom)
+  const status = totalSessions > 0 ? 'connected' : 'none'
 
   return (
     <Popover>
@@ -100,7 +102,7 @@ export const Status = () => {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72" side="bottom">
-        <Connections rows={allClients} totalConnected={totalConnections} />
+        <Sessions rows={allClients} total={totalSessions} />
         <Storage />
       </PopoverContent>
     </Popover>
