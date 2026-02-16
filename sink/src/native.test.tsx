@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, type RenderResult } from 'vitest-browser-react'
+import { describe, it } from 'vitest'
+import { render } from 'vitest-browser-react'
 
 import { Native } from './native'
 

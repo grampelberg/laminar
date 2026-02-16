@@ -1,5 +1,5 @@
 import { mockIPC } from '@tauri-apps/api/mocks'
-import { vi } from 'vitest'
+import { expect, onTestFinished, vi } from 'vitest'
 
 import { getLogger } from '@/utils'
 
@@ -7,11 +7,13 @@ const logger = getLogger('test-helpers')
 
 export const INVOKE_SELECT = 'plugin:sql|select'
 const INVOKE_CONFIG = 'get_config'
+const INVOKE_STATUS = 'get_status'
 
 const TO_MS = 1000
+const UNHANDLED_SETTLE_DELAY_MS = 10
 
 export const nextTick = () =>
-  new Promise(resolve => globalThis.setTimeout(resolve, 0))
+  new Promise(resolve => globalThis.setTimeout(resolve, 1))
 
 export const parseTime = (value: string) => {
   const num = Number.parseFloat(value)
@@ -33,29 +35,33 @@ const resolve = <TValue, Args extends unknown[] = []>(
 interface InvokeStub {
   config?: unknown
   select?: unknown
+  status?: unknown
 }
 
 export const dispatchInvoke =
   (stub: InvokeStub = {}) =>
   (cmd: string, args: unknown) => {
-  logger('called invoke', cmd, args)
+    logger('called invoke', cmd, args)
 
-  switch (cmd) {
-    case INVOKE_SELECT: {
-      return stub.select ? resolve(stub.select, cmd, args) : []
+    switch (cmd) {
+      case INVOKE_SELECT: {
+        return stub.select ? resolve(stub.select, cmd, args) : []
+      }
+      case INVOKE_CONFIG: {
+        return stub.config
+          ? resolve(stub.config, cmd, args)
+          : {
+              address: '',
+              db: {
+                path: '',
+                url: '',
+              },
+            }
+      }
+      case INVOKE_STATUS: {
+        return stub.status ? resolve(stub.status, cmd, args) : { dbSize: 0 }
+      }
     }
-    case INVOKE_CONFIG: {
-      return stub.config
-        ? resolve(stub.config, cmd, args)
-        : {
-            address: '',
-            db: {
-              path: '',
-              url: '',
-            },
-          }
-    }
-  }
   }
 
 export const mockInvoke = (stub: InvokeStub = {}) => {
@@ -71,3 +77,19 @@ export const mockInvoke = (stub: InvokeStub = {}) => {
 
 export const getCalls = (spy: ReturnType<typeof vi.spyOn>, name: string) =>
   spy.mock.calls.filter((call: unknown[]) => call[0] === name)
+
+export const unhandled = () => {
+  const onUnhandled = vi.fn()
+  globalThis.window.addEventListener('unhandledrejection', onUnhandled)
+
+  onTestFinished(() => {
+    globalThis.window.removeEventListener('unhandledrejection', onUnhandled)
+  })
+
+  return async () => {
+    await new Promise(resolve =>
+      globalThis.setTimeout(resolve, UNHANDLED_SETTLE_DELAY_MS),
+    )
+    expect(onUnhandled).not.toHaveBeenCalled()
+  }
+}

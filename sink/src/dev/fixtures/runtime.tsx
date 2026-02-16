@@ -1,21 +1,14 @@
-import {
-  type Getter,
-  type Setter,
-  type WritableAtom,
-  useAtomValue,
-} from 'jotai'
+import { type Atom, type Getter, type Setter, useAtomValue } from 'jotai'
 import { useAtomsSnapshot, useGotoAtomsSnapshot } from 'jotai-devtools'
-import { Result, err, ok } from 'neverthrow'
-import { useEffect } from 'react'
+import { intersection } from 'lodash-es'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import type { z } from 'zod'
 
 import {
   allFixtures,
   currentFixtureAtom,
   fixtureSchema,
   toName,
-  type DerivedItem,
   type Fixture,
   type PrimitiveItem,
 } from '@/dev/fixtures.tsx'
@@ -23,70 +16,66 @@ import { getLogger } from '@/utils.ts'
 
 const logger = getLogger(import.meta.url)
 
-type AtomSnapshot = ReturnType<typeof useAtomsSnapshot>
-type AtomConfig = WritableAtom<unknown, unknown[], unknown> & {
+type AtomConfig = Atom<unknown> & {
+  read: (get: Getter) => unknown
+  write?: (get: Getter, set: Setter, ...args: unknown[]) => unknown
   init?: unknown
+  debugLabel?: string
 }
 
-type FixtureError =
-  | { kind: 'not_found'; path: string }
-  | { kind: 'parse_failed'; error: z.ZodError }
-  | { kind: 'invalidated' }
-  | { kind: 'set_error'; error: unknown }
+const hasDebugLabel = (
+  atom: Atom<unknown>,
+): atom is Atom<unknown> & { debugLabel: string } =>
+  atom.debugLabel !== undefined
 
-const loadFixture = async (
-  path: string,
-): Promise<Result<Fixture, FixtureError>> => {
+const loadFixture = async (path: string) => {
   const fixture = (await allFixtures[path]?.())?.default ?? null
   if (!fixture) {
-    return err({ kind: 'not_found', path })
+    throw new Error(`Fixture not found: ${path}`)
   }
 
   const parsedFixture = fixtureSchema.safeParse(fixture)
   if (!parsedFixture.success) {
-    return err({ error: parsedFixture.error, kind: 'parse_failed' })
+    throw parsedFixture.error
   }
 
-  return ok(parsedFixture.data)
+  return parsedFixture.data
 }
 
-function primitiveRead(
-  this: WritableAtom<unknown, unknown[], unknown>,
-  get: Getter,
-) {
+function primitiveRead(this: AtomConfig, get: Getter) {
   return get(this)
 }
 
 function primitiveWrite(
-  this: WritableAtom<unknown, unknown[], unknown>,
+  this: AtomConfig,
   get: Getter,
   set: Setter,
   arg: unknown,
 ) {
-  return set(this, typeof arg === 'function' ? arg(get(this)) : arg)
+  return set(this as never, typeof arg === 'function' ? arg(get(this)) : arg)
 }
 
-const toPrimitive = (atom: AtomConfig, item: PrimitiveItem) => {
-  atom.init = item.value
-  atom.read = primitiveRead
+const toPrimitive = (atom: Atom<unknown>, item: PrimitiveItem) => {
+  const mutableAtom = atom as AtomConfig
+  mutableAtom.init = item.value
+  mutableAtom.read = primitiveRead
 
-  if ('write' in atom) {
-    atom.write = primitiveWrite
+  if ('write' in mutableAtom) {
+    mutableAtom.write = primitiveWrite
   }
 }
 
-const toDerived = (atom: AtomConfig, item: DerivedItem) => {
-  atom.read = item.read
-  if (item.write) {
-    atom.write = item.write
-  }
-}
-
-const buildNext = (snapshot: AtomSnapshot, fixture: Fixture) => {
+const applySnapshot = (
+  set: (snapshot: {
+    values: Map<Atom<unknown>, unknown>
+    dependents: Map<Atom<unknown>, Set<Atom<unknown>>>
+  }) => void,
+  atoms: Iterable<Atom<unknown>>,
+  fixture: Fixture,
+) => {
   const appliedLabels = new Set<string>()
-  const values = new Map()
 
-  for (const [atom, _] of snapshot.values) {
+  for (const atom of atoms) {
     if (!atom.debugLabel) {
       continue
     }
@@ -96,100 +85,89 @@ const buildNext = (snapshot: AtomSnapshot, fixture: Fixture) => {
       continue
     }
 
-    appliedLabels.add(atom.debugLabel)
-
-    if ('value' in entry) {
-      toPrimitive(atom as AtomConfig, entry)
-      values.set(atom, entry.value)
-    } else if ('init' in atom) {
-      console.warn(
-        `you can't convert primitive atoms to computed ones: ${atom.debugLabel}`,
+    if (!('value' in entry)) {
+      throw new Error(
+        `"value" is the only supported property: ${atom.debugLabel}`,
       )
-    } else {
-      toDerived(atom as AtomConfig, entry)
     }
+
+    appliedLabels.add(atom.debugLabel)
+    toPrimitive(atom, entry)
+
+    // Set values individually. This sidesteps any potential issues that could
+    // arise from setting an atom and its dependencies at once. `setSnapshot`
+    // doesn't reset the store's state, it just overrides the atoms that you
+    // pass in. This behavior allows us to do it incrementally and make sure
+    // there are no invalidation clashes with state.
+    set({
+      values: new Map([[atom, entry.value]]),
+      dependents: new Map(),
+    })
   }
 
-  const notMounted = Object.keys(fixture).filter(
-    label => !appliedLabels.has(label),
-  )
-
-  return {
-    next: {
-      dependents: new Map(snapshot.dependents),
-      values,
-    },
-    notMounted,
-  }
+  return Object.keys(fixture).filter(label => !appliedLabels.has(label))
 }
 
 export const FixtureRuntime = () => {
   const current = useAtomValue(currentFixtureAtom)
 
+  // This ensures that `useAtomSnapshot()` only triggers if we're actually
+  // interested in applying a fixture. It protects from aggressive re-renders in
+  // the runtime component for most use cases.
   return current ? <ApplySelectedFixture key={current} path={current} /> : null
 }
 
 const ApplySelectedFixture = ({ path }: { path: string }) => {
+  const [fixture, setFixture] = useState<Fixture>({})
   const snapshot = useAtomsSnapshot()
   const setSnapshot = useGotoAtomsSnapshot()
 
+  // The snapshot is going to change somewhat regularly as either values change
+  // or atoms are mounted/unmounted. We are only ever going to apply the fixture
+  // if there are atoms that are interesting to us. This filters out anything
+  // we're not interested in and triggers only on length changes. It should
+  // protect from rendering loops and the like.
+  const fixtureItems = intersection(
+    Object.keys(fixture),
+    [...snapshot.values.keys()].filter(hasDebugLabel).map(a => a.debugLabel),
+  ).length
+
   useEffect(() => {
-    if (snapshot.values.size === 0) {
+    ;(async () => {
+      try {
+        setFixture(await loadFixture(path))
+      } catch (e) {
+        toast.error(`Fixture not found: ${path}`)
+      }
+    })()
+  }, [path])
+
+  useEffect(() => {
+    if (fixtureItems === 0) {
       return
     }
 
-    ;(async () => {
-      ;(await loadFixture(path))
-        .andThen(fixture => {
-          const { next, notMounted } = buildNext(snapshot, fixture)
-          if (notMounted.length > 0) {
-            toast.warning(notMounted.join(', '), {
-              description: 'Fixture contains atoms that are not mounted.',
-            })
-          }
-
-          return Result.fromThrowable(
-            () => setSnapshot(next),
-            (error: unknown): FixtureError => {
-              if (
-                error instanceof Error &&
-                error.message.includes('[Bug] invalidated atom exists')
-              ) {
-                return { kind: 'invalidated' }
-              }
-
-              return { error, kind: 'set_error' }
-            },
-          )()
+    try {
+      let ignored = applySnapshot(setSnapshot, snapshot.values.keys(), fixture)
+      if (ignored.length > 0) {
+        toast.warning(ignored.join(', '), {
+          description: 'Fixture contains atoms that have been ignored.',
         })
-        .match(
-          () => {
-            toast.success(`Applied fixture: ${toName(path)}`)
-          },
-          error => {
-            switch (error.kind) {
-              case 'not_found': {
-                toast.error(`Fixture not found: ${error.path}`)
-                break
-              }
-              case 'parse_failed': {
-                toast.error('Unable to parse fixture', {
-                  description: 'Check the console for more details',
-                })
-                break
-              }
-              case 'set_error': {
-                toast.error('Unhandled error applying fixture', {
-                  description: 'Check the console for more details',
-                })
-                console.error(error.error)
-                break
-              }
-            }
-          },
-        )
-    })()
-  }, [path, setSnapshot, snapshot.values.size])
+      }
+    } catch (e) {
+      toast.error('Unhandled error applying fixture', {
+        description: 'Check the console for more details',
+      })
+
+      throw e
+    }
+
+    toast.success(`Applied fixture: ${toName(path)}`)
+  }, [setSnapshot, fixtureItems])
 
   return null
+}
+
+export const __test = {
+  ApplySelectedFixture,
 }

@@ -58,12 +58,7 @@ export const RecordsTable = () => {
   }, [filters])
 
   const onScroll = useCallback(
-    ({ first, last }: Viewport) => {
-      const position = {
-        top: first - OVERSCAN <= 0,
-        bottom: last + OVERSCAN >= rows.length,
-      }
-
+    (position: Viewport) => {
       setPosition(position)
     },
     [rows.length, setPosition],

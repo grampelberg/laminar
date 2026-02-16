@@ -4,8 +4,11 @@ import { atomWithRefresh, unwrap } from 'jotai/utils'
 
 import { dbAtom } from '@/db'
 import { streamAtom } from '@/stream.tsx'
+import { getLogger } from '@/utils'
 
 import sessionsQuery from './recent_sessions.sql?raw'
+
+const logger = getLogger(import.meta.url)
 
 export interface SessionRow {
   current: number

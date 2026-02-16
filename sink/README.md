@@ -24,6 +24,21 @@ bun dev
 
 If you'd like to test without `StrictMode`, set `VITE_STRICT_MODE=false`.
 
+### Tauri <> Browser
+
+We strive to make sure the UI is usable through the browser in addition to
+tauri. This concretely means that when we detect that we're not running in
+tauri, IPC is mocked out. If you're adding a new command or using a tauri
+plugin, make sure to add it to the [dispatcher](./src/tests.tsx).
+
+Try to limit the use of `invoke` to atoms. These can be stubbed out via fixtures
+and provide different scenarios to design for in the browser. It is important
+that there is a test which does _not_ rely on fixtures included for the atom.
+This is used as a smoke test that the browser still works.
+
+Note: it would be possible to do a vite + babel plugin that exports the atoms
+and does a smoke test automatically. This has not been implemented yet.
+
 ### Tests
 
 Tests are written in [vitest](https://vitest.dev) with
@@ -66,26 +81,10 @@ export default {
 
 Where `countAtom` is the name of the atom you'd like to have set (or the
 atom.debugLabel). You don't need to be exhaustive, just add the atoms you want.
-Additionally, don't include atoms that are derived, setting their values will do
-nothing.
-
-You can also have fixtures that run functions. For example:
-
-```ts
-import { countAtom } from './stuff.tsx'
-
-export default {
-  derivedAtom = { read: get => get(countAtom) + 100 },
-}
-```
-
-This has the same parameters as atoms (`{ read: Getter, write: Setter }`).
-
-To load a fixture, open the dev command palette (`cmd-p`). You'll be able to
-select from any of the available fixtures.
 
 Note: if there is an atom you want to make sure is _not_ settable, set the
-`.debugPrivate` property on it.
+`.debugPrivate` property on it. Any atoms that are not POJO must have
+`.debugPrivate` set or the export will fail.
 
 ### Storybook
 

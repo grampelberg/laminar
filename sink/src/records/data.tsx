@@ -110,6 +110,8 @@ const queryAtom = atom(get => {
   return query
 })
 
+queryAtom.debugPrivate = true
+
 const pageAtom = atomWithRefresh(async get => {
   const cursor = get(cursorAtom)
   logger('fetch page', cursor)

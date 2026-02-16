@@ -27,13 +27,12 @@ export default defineConfig(async () => ({
   },
   optimizeDeps: {
     include: [
+      'cmdk',
+      'neverthrow',
       'react-dom/client',
-      'wouter',
       'react-hotkeys-hook',
       'sonner',
-      'cmdk',
-      'jotai-devtools',
-      'neverthrow',
+      'wouter',
       'zod',
     ],
   },

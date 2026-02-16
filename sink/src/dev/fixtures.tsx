@@ -1,3 +1,4 @@
+import * as devalue from 'devalue'
 import { type Atom, type Getter, type Setter, useAtom, useSetAtom } from 'jotai'
 import { useAtomsSnapshot } from 'jotai-devtools'
 import { atomWithStorage } from 'jotai/utils'
@@ -10,8 +11,6 @@ import {
   CommandItem,
   CommandSeparator,
 } from '@/components/ui/command.tsx'
-
-const INDENT = 2
 
 type Snapshot = Map<Atom<unknown>, unknown>
 
@@ -70,6 +69,22 @@ const resolveExportValue = async (value: unknown) => {
   ])
 }
 
+const getValue = (
+  label: string,
+  { value }: { value: unknown },
+): PrimitiveItem => {
+  try {
+    devalue.uneval(value)
+
+    return { value: value }
+  } catch (error) {
+    throw new Error(
+      `${label} does not appear to be POJO. Set ${label}.debugPrivate to exclude it from exports.`,
+      { cause: error },
+    )
+  }
+}
+
 const buildExport = async (snapshot: Snapshot) => {
   const values: Fixture = {}
   const pending: string[] = []
@@ -83,7 +98,7 @@ const buildExport = async (snapshot: Snapshot) => {
 
     switch (resolved.kind) {
       case 'value': {
-        values[key.debugLabel] = { value: resolved.value }
+        values[key.debugLabel] = getValue(key.debugLabel, resolved)
         continue
       }
       case 'pending': {
@@ -105,6 +120,24 @@ const buildExport = async (snapshot: Snapshot) => {
   }
 }
 
+const exportFixture = async (snapshot: Snapshot) => {
+  const { pending, values } = await buildExport(snapshot)
+
+  const result = devalue.uneval(values)
+
+  await globalThis.navigator.clipboard.writeText(`export default ${result}`)
+
+  toast.success('Fixture copied to clipboard')
+
+  if (pending.length > 0) {
+    toast.warning(
+      `Skipped pending atoms while exporting: ${pending.join(', ')}`,
+    )
+  }
+
+  return result
+}
+
 export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
   const setCurrent = useSetAtom(currentFixtureAtom)
 
@@ -116,28 +149,12 @@ export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
     onDone?.()
   }
 
-  const exportFixture = async () => {
-    const { pending, values } = await buildExport(snapshot.values)
-
-    await globalThis.navigator.clipboard.writeText(
-      `export default ${JSON.stringify(values, undefined, INDENT)}`,
-    )
-
-    toast.success('Fixture copied to clipboard')
-
-    if (pending.length > 0) {
-      toast.warning(
-        `Skipped pending atoms while exporting: ${pending.join(', ')}`,
-      )
-    }
-  }
-
   return (
     <>
       <CommandGroup heading="Fixtures">
         <CommandItem
           onSelect={() =>
-            void exportFixture()
+            void exportFixture(snapshot.values)
               .catch(error => {
                 globalThis.console.warn(
                   'Failed to copy fixture to clipboard',
@@ -191,4 +208,8 @@ const FixtureItem = ({
       {`Apply fixture: ${toName(path)}`}
     </CommandItem>
   )
+}
+
+export const __test = {
+  exportFixture,
 }

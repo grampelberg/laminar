@@ -47,8 +47,8 @@ interface ColumnMeta {
 }
 
 export interface Viewport {
-  first: number
-  last: number
+  top: boolean
+  bottom: boolean
 }
 
 export interface DataTableHandle {
@@ -173,10 +173,16 @@ const getPosition = (virtual: Virtualizer<HTMLDivElement, Element>) => {
   const last = items.at(-1)?.index ?? 0
 
   return {
-    top: items[0]?.start ?? 0,
-    bottom: virtual.getTotalSize() - (items.at(-1)?.end ?? 0),
-    first,
-    last,
+    spacer: {
+      top: items[0]?.start ?? 0,
+      bottom: virtual.getTotalSize() - (items.at(-1)?.end ?? 0),
+    },
+    position: {
+      top:
+        (virtual.scrollOffset || 0) - virtual.options.estimateSize(first) <= 0,
+      bottom: last >= virtual.options.count - virtual.options.overscan - 1,
+    },
+    offset: virtual.scrollOffset,
     key: `${first}:${last}:${items.length}`,
   }
 }
@@ -230,14 +236,14 @@ const DataTableInner = <Data extends RowData>(
     ...virtualOpts,
   })
 
-  const { top, bottom, first, last, key } = getPosition(virt)
+  const { spacer, position, key } = getPosition(virt)
   const isResizingColumn = Boolean(
     table.getState().columnSizingInfo.isResizingColumn,
   )
 
   useEffect(() => {
-    onScroll({ first, last })
-  }, [onScroll, first, last])
+    onScroll(position)
+  }, [onScroll, position.top, position.bottom])
 
   const columnCount = table.getVisibleLeafColumns().length
 
@@ -266,9 +272,9 @@ const DataTableInner = <Data extends RowData>(
             ))}
           </TableHeader>
           <TableBody>
-            {top > 0 && (
+            {spacer.top > 0 && (
               <tr>
-                <td colSpan={columnCount} style={{ height: top }} />
+                <td colSpan={columnCount} style={{ height: spacer.top }} />
               </tr>
             )}
             {rows.length ? (
@@ -286,9 +292,9 @@ const DataTableInner = <Data extends RowData>(
             ) : (
               <Empty colSpan={table.getVisibleLeafColumns().length} />
             )}
-            {bottom > 0 && (
+            {spacer.bottom > 0 && (
               <tr>
-                <td colSpan={columnCount} style={{ height: bottom }} />
+                <td colSpan={columnCount} style={{ height: spacer.bottom }} />
               </tr>
             )}
           </TableBody>

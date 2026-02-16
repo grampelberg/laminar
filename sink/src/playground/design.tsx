@@ -5,6 +5,8 @@ import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler'
 import { SampleTable } from '@/playground/sample-table.tsx'
 import { RecordsTable } from '@/records/table.tsx'
 
+import { LinkedAtoms } from './atoms'
+
 export const DesignPlayground = () => (
   <>
     <Route path="/">
@@ -24,6 +26,9 @@ export const DesignPlayground = () => (
     </Route>
     <Route path="/table">
       <SampleTable />
+    </Route>
+    <Route path="/atoms">
+      <LinkedAtoms />
     </Route>
   </>
 )

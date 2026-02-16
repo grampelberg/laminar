@@ -11,10 +11,6 @@ export const atomWithOwnedDefault = <Value,>(
   const EMPTY = Symbol()
   const inner = atom<Value | typeof EMPTY>(EMPTY)
 
-  if (import.meta.env?.MODE !== 'production') {
-    inner.debugPrivate = true
-  }
-
   const outer = atom(
     get => {
       const val = get(inner)
@@ -39,6 +35,11 @@ export const atomWithOwnedDefault = <Value,>(
 
   outer.onMount = set => {
     set(RESET)
+  }
+
+  if (import.meta.env?.MODE !== 'production') {
+    outer.debugPrivate = true
+    inner.debugPrivate = true
   }
 
   return outer

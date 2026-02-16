@@ -2,7 +2,6 @@
 
 - Pick a name
 - Get a status page that shows:
-  - Connected clients.
   - Make sure `display_name` is working correctly from the load generator.
 - Get a settings page that:
   - Allows configuring a remote log sink.
@@ -11,19 +10,22 @@
   - Need to figure out the items that are metadata vs display, eg the pkgs and
     \_added. These shouldn't be included in the view but maybe the table
     _should_ be joined so that it shows up correctly in the UI?
-- Some kind of testing framework
 
 ## Bugs
 
-- From disconnect to receiving the event appears to be about ~30s. Is there a
-  way to make that faster?
+- Complex objects don't convert to values well. The `dbAtom` returns a
+  constructed value and it serializes to a `{ path }` object. When the fixture
+  is hydrated, it causes anything trying to use the object to fail. These kind
+  of things should either warn during export and not include them.
+- Fixtures aren't saving statusAtom.
+  - As this isn't drawn by default it misses the "just check to see the ui
+    loads" test. Is there a way to be a little bit more comprehensive?
+
+
 - There's something weird about endpoints and reconnecting if you've failed in
   the past. I had the app crash on an endpoint and then, even after restarts,
   loadgen refused to connect to that endpoint. I made a new key and, voila, it
   was able to connect immediately.
-- The "top" definition uses overscan right now. That means that even if you've
-  scrolled down from the top, it'll still get live updates which is pretty
-  annoying.
 
 ## Backend
 
@@ -61,6 +63,10 @@
     be out of date quickly. Maybe there should be a "detail" view for a line?
 - Opening the sidebar runs all in the click handler and takes ~200ms. That needs
   to get cleaned up. I assume it is from the JSON.parse().
+- Is there a way to make this all work via the keyboard exclusively? Maybe the
+  command palette can expand to have extra functionality?
+- If you're filtering, there's no visual way to know whether you're actually
+  receiving new logs or not. Maybe introduce a total vs filtered count?
 
 ### Testing
 
@@ -96,7 +102,8 @@
   not sure you can tell that there's a delay though given all the animations.
 
 - Does it make sense to add a way to know where in the total rows you are
-  scrolled to?
+  scrolled to? The scrollbar position does an ~okay job of suggesting how far
+  you've gotten in the list.
 
 ### Fixtures
 
