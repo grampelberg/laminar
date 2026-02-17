@@ -1,12 +1,19 @@
+mod config;
+mod debounce;
+mod error;
 mod record;
 mod stream;
-mod debounce;
 
-use std::path::{Path, PathBuf};
+use std::{
+    convert::Infallible,
+    path::{Path, PathBuf},
+    sync::RwLock,
+};
 
 use eyre::Result;
-use inspector::config::{KeySource, LayerConfig, ReaderConfig};
+use inspector::config::LayerConfig;
 use iroh::{Endpoint, EndpointId};
+use serde_with::serde_as;
 use tauri::{AppHandle, Manager, WebviewWindow, Wry};
 use tracing_subscriber::{
     filter::{EnvFilter, LevelFilter},
@@ -14,14 +21,24 @@ use tracing_subscriber::{
     reload::Layer,
 };
 
-use crate::stream::RecordStream;
+use crate::{
+    config::{get_config, set_config},
+    stream::RecordStream,
+};
 
 const DB_NAME: &'static str = "inspector.db";
 pub(crate) const ON_EVENT: &str = "got_event";
 
+serde_with::serde_conv!(
+    PathBufAsString,
+    PathBuf,
+    |path: &PathBuf| path.to_string_lossy().to_string(),
+    |value: String| Ok::<PathBuf, Infallible>(PathBuf::from(value))
+);
+
 #[tauri::command]
-fn get_config(state: tauri::State<'_, AppData>) -> Config {
-    state.config.clone()
+fn get_state(state: tauri::State<'_, AppData>) -> State {
+    state.state.clone()
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -32,7 +49,7 @@ struct Status {
 
 #[tauri::command]
 fn get_status(state: tauri::State<'_, AppData>) -> tauri::Result<Status> {
-    let meta = std::fs::metadata(&state.config.db.path)?;
+    let meta = std::fs::metadata(&state.state.db.path)?;
 
     Ok(Status {
         db_size: meta.len(),
@@ -80,21 +97,6 @@ fn clean_app_data(path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn load_config(config_path: &PathBuf) -> Result<(LayerConfig, ReaderConfig)> {
-    let fpath = config_path.join("config.toml");
-
-    let (layer, mut reader) =
-        inspector::Config::load_from_path(fpath.to_string_lossy())?.split();
-
-    if matches!(reader.key, KeySource::None) {
-        reader.key = KeySource::File {
-            path: config_path.join("reader.key").to_string_lossy().to_string(),
-        };
-    }
-
-    Ok((layer, reader))
-}
-
 fn db_config(storage: &Storage) -> Result<DbConfig> {
     std::fs::create_dir_all(&storage.data)?;
     let path = storage.data.join(DB_NAME);
@@ -116,7 +118,7 @@ impl Storage {
 
         Ok(Self {
             root: root.clone(),
-            config: handle.path().app_config_dir()?.join("config"),
+            config: handle.path().app_config_dir()?,
             data: root.join("data"),
         })
     }
@@ -139,32 +141,23 @@ impl std::fmt::Debug for Storage {
     }
 }
 
-#[derive(Clone, serde::Serialize)]
+#[serde_as]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DbConfig {
-    #[serde(serialize_with = "serialize_path")]
+    #[serde_as(as = "PathBufAsString")]
     path: PathBuf,
     url: String,
 }
 
-fn serialize_path<S>(
-    path: &PathBuf,
-    serializer: S,
-) -> std::result::Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_str(path.to_string_lossy().as_ref())
-}
-
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Config {
+struct State {
     address: String,
     db: DbConfig,
 }
 
-impl Config {
+impl State {
     fn new(address: EndpointId, db: DbConfig) -> Self {
         Self {
             address: address.to_string(),
@@ -174,7 +167,9 @@ impl Config {
 }
 
 struct AppData {
-    config: Config,
+    storage: Storage,
+    config: RwLock<config::Config>,
+    state: State,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -185,7 +180,10 @@ pub fn run() {
         .setup(|app| {
             let storage = Storage::from(app.handle())?;
 
-            let (layer_config, reader_config) = load_config(&storage.config)?;
+            let config = config::Config::load(&storage.config)?;
+
+            let layer_config = config.layer.clone();
+            let reader_config = config.reader.clone();
             let key = reader_config.key.load()?;
 
             let enable = layer_config.remote != Some(key.public());
@@ -210,7 +208,9 @@ pub fn run() {
             let db = db_config(&storage)?;
 
             app.manage(AppData {
-                config: Config::new(key.public(), db.clone()),
+                storage,
+                config: RwLock::new(config),
+                state: State::new(key.public(), db.clone()),
             });
 
             tracing::info!(path = ?db.path.to_string_lossy(), "db_path");
@@ -225,7 +225,9 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_config, get_status])
+        .invoke_handler(tauri::generate_handler![
+            get_state, get_status, get_config, set_config
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

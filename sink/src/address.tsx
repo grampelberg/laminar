@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover.tsx'
-import { configAtom } from '@/config.ts'
+import { stateAtom } from '@/state.ts'
 import { getLogger } from '@/utils.ts'
 
 const logger = getLogger(import.meta.url)
@@ -20,7 +20,7 @@ const PULSE_SCALE = 1.08
 const ICON_SWAP = 0.15
 
 export const AddressButton = () => {
-  const cfg = useAtomValue(configAtom)
+  const state = useAtomValue(stateAtom)
   const [copiedOpen, setCopiedOpen] = useState(false)
   const [pulseKey, setPulseKey] = useState(0)
   const copiedTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(
@@ -37,7 +37,7 @@ export const AddressButton = () => {
   )
 
   const handleCopyAddress = () => {
-    void globalThis.navigator.clipboard.writeText(cfg.address)
+    void globalThis.navigator.clipboard.writeText(state.address)
     setCopiedOpen(true)
     setPulseKey(current => current + 1)
 

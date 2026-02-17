@@ -1,4 +1,9 @@
-import { atom, type Getter, type SetStateAction } from 'jotai'
+import {
+  atom,
+  type Getter,
+  type SetStateAction,
+  type WritableAtom,
+} from 'jotai'
 import { RESET } from 'jotai/utils'
 
 import { getLogger } from '@/utils'
@@ -43,4 +48,31 @@ export const atomWithOwnedDefault = <Value,>(
   }
 
   return outer
+}
+
+export const convertAtom = <Source, Converted>(
+  source: WritableAtom<Source, [Source], void>,
+  from: (val: Source) => Converted,
+  to: (val: Converted) => Source,
+) => {
+  const getVal = (get: Getter) =>
+    Promise.resolve(get(source)).then(val => from(val))
+
+  const converter = atom(
+    get => getVal(get),
+    async (get, set, val: SetStateAction<Converted>) => {
+      const prev = await getVal(get)
+      const next =
+        typeof val === 'function'
+          ? (val as (prev: Converted) => Converted)(prev)
+          : val
+      set(source, to(next))
+    },
+  )
+
+  if (import.meta.env?.MODE !== 'production') {
+    converter.debugPrivate = true
+  }
+
+  return converter
 }

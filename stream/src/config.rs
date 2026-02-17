@@ -43,7 +43,6 @@ impl Default for ReaderConfig {
 pub struct Config {
     layer: LayerConfig,
     reader: ReaderConfig,
-    test: Option<String>,
 }
 
 // TODO:

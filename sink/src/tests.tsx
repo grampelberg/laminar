@@ -1,12 +1,15 @@
 import { mockIPC } from '@tauri-apps/api/mocks'
 import { expect, onTestFinished, vi } from 'vitest'
 
+import { DEFAULT_CONFIG } from '@/config.ts'
+import { DEFAULT_STATE } from '@/state.ts'
 import { getLogger } from '@/utils'
 
 const logger = getLogger('test-helpers')
 
 export const INVOKE_SELECT = 'plugin:sql|select'
 const INVOKE_CONFIG = 'get_config'
+const INVOKE_STATE = 'get_state'
 const INVOKE_STATUS = 'get_status'
 
 const TO_MS = 1000
@@ -34,6 +37,7 @@ const resolve = <TValue, Args extends unknown[] = []>(
 
 interface InvokeStub {
   config?: unknown
+  state?: unknown
   select?: unknown
   status?: unknown
 }
@@ -48,15 +52,10 @@ export const dispatchInvoke =
         return stub.select ? resolve(stub.select, cmd, args) : []
       }
       case INVOKE_CONFIG: {
-        return stub.config
-          ? resolve(stub.config, cmd, args)
-          : {
-              address: '',
-              db: {
-                path: '',
-                url: '',
-              },
-            }
+        return stub.config ? resolve(stub.config, cmd, args) : DEFAULT_CONFIG
+      }
+      case INVOKE_STATE: {
+        return stub.state ? resolve(stub.state, cmd, args) : DEFAULT_STATE
       }
       case INVOKE_STATUS: {
         return stub.status ? resolve(stub.status, cmd, args) : { dbSize: 0 }

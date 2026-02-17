@@ -1,25 +1,4 @@
 export default {
-  configAtom: {
-    value: {
-      address:
-        '20c448da785a0f1f708a4fd2bbe71e4dc9674580b01621a32ee3b1015ca38973',
-      dbUrl: 'sqlite:data/inspector.db',
-    },
-  },
-  rawFiltersAtom: {
-    value: [],
-  },
-  filtersAtom: {
-    value: [],
-  },
-  dbAtom: {
-    value: {
-      path: 'sqlite:data/inspector.db',
-    },
-  },
-  totalAtom: {
-    value: 4775,
-  },
   stateAtom: {
     value: {
       rows: [
@@ -11513,15 +11492,5 @@ export default {
         tsMs: 1771008489274,
       },
     },
-  },
-  selectedAtom: {},
-  positionAtom: {
-    value: {
-      top: false,
-      bottom: false,
-    },
-  },
-  queryAtom: {
-    value: {},
   },
 }

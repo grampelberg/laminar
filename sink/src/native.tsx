@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { AddressButton } from '@/address.tsx'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler.tsx'
 import { Records } from '@/records.tsx'
+import { Settings } from '@/settings.tsx'
 import { Status } from '@/status.tsx'
 
 if (!globalThis.window.isTauri) {
@@ -18,6 +19,7 @@ export const Native = () => (
         <div className="flex items-center gap-2">
           <AddressButton />
           <Status />
+          <Settings />
           <AnimatedThemeToggler />
         </div>
       </div>

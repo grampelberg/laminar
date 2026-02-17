@@ -40,6 +40,11 @@ sqlx = { version = "0.8.6", features = [
 ] }
 bon = { version = "3.8.2", features = ["implied-bounds"] }
 iroh = "0.96.1"
+figment = { version = "0.10.19", features = ["toml"] }
+toml = "0.8.19"
+serde_with = "3.14.1"
+thiserror = "2.0.18"
+chrono = { version = "0.4.43", features = ["serde"] }
 
 [features]
 clean = []

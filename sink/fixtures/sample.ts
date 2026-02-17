@@ -1,20 +1,19 @@
 export default (function (a) {
   return {
-    configAtom: {
+    stateAtom: {
       value: {
         address:
-          '20c448da785a0f1f708a4fd2bbe71e4dc9674580b01621a32ee3b1015ca38973',
+          'cd2abf5b6c164711cc89d9a402f601e9d5d80bb5ecf895cd78e045e5b2d5f99a',
         db: {
           path: '/Users/thomas/Library/Application Support/dev.reasons.inspector/data/inspector.db',
           url: 'sqlite:data/inspector.db',
         },
       },
     },
-    rawFiltersAtom: { value: a },
     filtersAtom: { value: a },
     cursorAtom: { value: void 0 },
     totalAtom: { value: 4633 },
-    stateAtom: {
+    'records.state': {
       value: {
         hasMore: true,
         cursor: { id: 4533, tsMs: 1771206693694 },

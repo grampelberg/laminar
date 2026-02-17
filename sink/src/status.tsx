@@ -2,14 +2,19 @@ import { cva } from 'class-variance-authority'
 import { formatDistanceToNow } from 'date-fns'
 import { filesize } from 'filesize'
 import { useAtom, useAtomValue } from 'jotai'
+import { VisuallyHidden } from 'radix-ui'
+import { useLocation, useRoute } from 'wouter'
 
 import { Button } from '@/components/ui/button'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { routes } from '@/routes'
 import {
   type SessionRow,
   sessionsAtom,
@@ -79,32 +84,49 @@ const Storage = () => {
 
 export const Status = () => {
   useAtom(statusUpdateAtom)
+  const [isOpen] = useRoute(routes.status)
+  const [_location, navigate] = useLocation()
 
   const { rows: allClients, total: totalSessions } = useAtomValue(sessionsAtom)
   const status = totalSessions > 0 ? 'connected' : 'none'
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          className={cn('gap-2 rounded-full')}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          Status
-          <span
-            className={statusDot({
-              state: status,
-            })}
-            data-slot="status-dot"
-          />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72" side="bottom">
-        <Sessions rows={allClients} total={totalSessions} />
-        <Storage />
-      </PopoverContent>
-    </Popover>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open =>
+        open ? navigate(routes.status) : globalThis.window.history.back()
+      }
+    >
+      <Button
+        className={cn('gap-2')}
+        onClick={() => navigate(routes.status)}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        Status
+        <span
+          className={statusDot({
+            state: status,
+          })}
+          data-slot="status-dot"
+        />
+      </Button>
+      <SheetContent side="right">
+        <SheetHeader className="pb-0">
+          <SheetTitle>Status</SheetTitle>
+          <VisuallyHidden.Root asChild>
+            <SheetDescription>
+              View current status of the application, such as connected clients
+              and local storage usage.
+            </SheetDescription>
+          </VisuallyHidden.Root>
+        </SheetHeader>
+        <div className="px-4 pb-4">
+          <Sessions rows={allClients} total={totalSessions} />
+          <Storage />
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }

@@ -9,7 +9,7 @@ import {
   SqliteQueryCompiler,
 } from 'kysely'
 
-import { configAtom } from '@/config.ts'
+import { stateAtom } from '@/state.ts'
 import { getLogger } from '@/utils'
 
 import type { DB } from './types/db.ts'
@@ -26,11 +26,11 @@ export const queryBuilder = new Kysely<DB>({
 })
 
 export const dbAtom = atom(async get => {
-  const cfg = await get(configAtom)
+  const {
+    db: { url },
+  } = await get(stateAtom)
 
-  logger('config', cfg)
-
-  return await Database.load(cfg.db.url)
+  return await Database.load(url)
 })
 
 dbAtom.debugPrivate = true

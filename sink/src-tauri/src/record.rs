@@ -8,9 +8,7 @@ pub trait WithSql {
     async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()>;
 }
 
-pub async fn close_open_sessions(
-    pool: &Pool<Sqlite>,
-) -> sqlx::Result<u64> {
+pub async fn close_open_sessions(pool: &Pool<Sqlite>) -> sqlx::Result<u64> {
     let result = sqlx::query(
         r#"
         UPDATE sessions

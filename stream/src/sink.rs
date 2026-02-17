@@ -11,6 +11,7 @@ use iroh::{
     protocol::{AcceptError, ProtocolHandler},
 };
 use serde::Serialize;
+use serde_with::serde_as;
 use strum::EnumDiscriminants;
 use tokio::{
     io::AsyncReadExt,
@@ -27,9 +28,10 @@ pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 pub(crate) use driver::Driver;
 use session::Session;
 
+#[serde_as]
 #[derive(Clone, Debug, bon::Builder, serde::Serialize)]
 pub struct Response<Assertion, Body> {
-    #[serde(serialize_with = "to_string")]
+    #[serde_as(as = "serde_with::DisplayFromStr")]
     #[builder(default = Uuid::new_v4())]
     pub session_id: Uuid,
     pub identity: Identity<Assertion>,
@@ -39,21 +41,12 @@ pub struct Response<Assertion, Body> {
     pub event: ResponseEvent<Body>,
 }
 
+#[serde_as]
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct Identity<T> {
-    #[serde(serialize_with = "to_string")]
+    #[serde_as(as = "serde_with::DisplayFromStr")]
     pub observed: EndpointId,
     pub assertion: T,
-}
-
-fn to_string<S>(
-    value: impl std::fmt::Display,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_str(&value.to_string())
 }
 
 #[derive(

@@ -60,6 +60,8 @@ const rawFiltersAtom = atomWithStorage<RecordFilter[]>(
   },
 )
 
+rawFiltersAtom.debugPrivate = true
+
 export const filtersAtom = atom(
   get => get(rawFiltersAtom),
   (
@@ -97,6 +99,7 @@ export const stateAtom = unwrap(
       rows: [],
     },
 )
+stateAtom.debugLabel = 'records.state'
 
 const cursorAtom = atomWithReset<RowsCursor | undefined>(undefined)
 
