@@ -3,7 +3,7 @@ import { cva } from 'class-variance-authority'
 import { useAtom } from 'jotai'
 import { clamp } from 'lodash-es'
 import { MinusIcon, PlusIcon, Settings2Icon } from 'lucide-react'
-import type { FocusEvent } from 'react'
+import { type FocusEvent, useRef } from 'react'
 import { useRoute, useLocation } from 'wouter'
 import { z } from 'zod'
 
@@ -176,6 +176,7 @@ const RetentionConfig = () => {
 export const Settings = () => {
   const [isOpen] = useRoute(routes.settings)
   const [_location, navigate] = useLocation()
+  const contentRef = useRef<HTMLDivElement>(null)
 
   return (
     <Sheet
@@ -191,9 +192,12 @@ export const Settings = () => {
         </Button>
       </SheetTrigger>
       <SheetContent
+        ref={contentRef}
         onOpenAutoFocus={event => {
           event.preventDefault()
+          contentRef.current?.focus()
         }}
+        tabIndex={-1}
         side="right"
       >
         <SheetHeader>

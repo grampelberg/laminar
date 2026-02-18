@@ -4,10 +4,6 @@
 - Get a status page that shows:
   - Make sure `display_name` is working correctly from the load generator.
 - Backend -> frontend error reporting
-- JSON view that works
-  - Need to figure out the items that are metadata vs display, eg the pkgs and
-    \_added. These shouldn't be included in the view but maybe the table
-    _should_ be joined so that it shows up correctly in the UI?
 
 ## Bugs
 
