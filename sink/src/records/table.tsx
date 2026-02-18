@@ -12,17 +12,18 @@ import {
   type Viewport,
 } from '@/components/ui/data-table'
 import { cn } from '@/lib/utils'
-import { selectedAtom } from '@/records.tsx'
+import { recordsSchema } from '@/records/schema'
+import { getLogger } from '@/utils'
+
+import { selectedAtom } from './data.tsx'
+import { filtersAtom } from './data/filter.ts'
 import {
   type RecordRow,
   stateAtom,
   positionAtom,
   loadMoreAtom,
   streamUpdateAtom,
-  filtersAtom,
-} from '@/records/data.tsx'
-import { recordsSchema } from '@/records/schema'
-import { getLogger } from '@/utils'
+} from './data/rows.ts'
 
 const logger = getLogger(import.meta.url)
 

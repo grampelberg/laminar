@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
 
 import {
   Tooltip,
@@ -10,10 +10,19 @@ const fullFormatter = new Intl.DateTimeFormat(undefined, {
   timeStyle: 'medium',
 })
 
+type TimestampFormat = 'medium' | 'long'
+
+const formatTimestamp = (date: Date, formatType: TimestampFormat) =>
+  formatType === 'long'
+    ? format(date, "MMM d 'at' HH:mm:ss.SSS")
+    : fullFormatter.format(date)
+
 export const Timestamp = ({
+  format: formatType = 'medium',
   ms,
   relative = false,
 }: {
+  format?: TimestampFormat
   ms: number
   relative?: boolean
 }) => {
@@ -22,9 +31,10 @@ export const Timestamp = ({
   }
 
   const date = new Date(ms)
+  const formatted = formatTimestamp(date, formatType)
 
   if (!relative) {
-    return <span>{fullFormatter.format(date)}</span>
+    return <span>{formatted}</span>
   }
 
   return (
@@ -32,7 +42,7 @@ export const Timestamp = ({
       <TooltipTrigger asChild>
         <span>{formatDistanceToNow(date)}</span>
       </TooltipTrigger>
-      <TooltipContent>{fullFormatter.format(date)}</TooltipContent>
+      <TooltipContent>{formatted}</TooltipContent>
     </Tooltip>
   )
 }

@@ -2,8 +2,9 @@ import { useAtom } from 'jotai'
 import { X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { filtersAtom } from '@/records/data'
 import { filterLabelFor } from '@/records/schema'
+
+import { filtersAtom } from './data/filter'
 
 export const Filters = () => {
   const [filters, setFilters] = useAtom(filtersAtom)

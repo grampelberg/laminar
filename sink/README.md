@@ -170,3 +170,5 @@ backend.
   fishing, as in looking for something valuable from streams.
 - Is there something humorous that can be a play on "sink"? As in "the kitchen
   sink"?
+- I like the name "substrate" but I'm not sure it matches with the project. It'd
+  be a logo with a tree and showing its roots down in the dirt.

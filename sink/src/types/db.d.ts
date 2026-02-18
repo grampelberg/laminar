@@ -28,7 +28,7 @@ export interface Events {
 export interface Identity {
   display_name: string | null;
   hostname: string;
-  name: string;
+  process_name: string;
   pid: number;
   pk: Generated<number>;
   start_ms: number;

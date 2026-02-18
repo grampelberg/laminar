@@ -3,7 +3,8 @@ import { useSetAtom } from 'jotai'
 import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
-import { filtersAtom, type RecordFilter } from '@/records/data.tsx'
+
+import { filtersAtom, type RecordFilter } from './data/filter'
 
 export const FilterCell = ({
   children,

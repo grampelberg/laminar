@@ -3,8 +3,6 @@
 - Pick a name
 - Get a status page that shows:
   - Make sure `display_name` is working correctly from the load generator.
-- Get a settings page that:
-  - Allows configuring a remote log sink.
 - Backend -> frontend error reporting
 - JSON view that works
   - Need to figure out the items that are metadata vs display, eg the pkgs and
@@ -13,15 +11,7 @@
 
 ## Bugs
 
-- Complex objects don't convert to values well. The `dbAtom` returns a
-  constructed value and it serializes to a `{ path }` object. When the fixture
-  is hydrated, it causes anything trying to use the object to fail. These kind
-  of things should either warn during export and not include them.
-- Fixtures aren't saving statusAtom.
-  - As this isn't drawn by default it misses the "just check to see the ui
-    loads" test. Is there a way to be a little bit more comprehensive?
-
-
+-
 - There's something weird about endpoints and reconnecting if you've failed in
   the past. I had the app crash on an endpoint and then, even after restarts,
   loadgen refused to connect to that endpoint. I made a new key and, voila, it
@@ -81,7 +71,12 @@
 
 ### Records
 
-- Make it possible to close the sidebar. Maybe a vertical accordion?
+- Hook routes up to show/hide the sidebar.
+- Work with nested objects
+  - I need to update the load generator to publish nested objects
+- Animate changing the sheet's values. Just opacity?
+- Show renders in the table by field type (timestamp is an actual timestamp,
+  level and kind as well).
 
 ### Table
 

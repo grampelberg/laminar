@@ -5,12 +5,12 @@ CREATE TABLE identity (
   writer_id TEXT    NOT NULL,
   display_name TEXT,
   pid       INTEGER NOT NULL,
-  name      TEXT    NOT NULL,
+  process_name TEXT    NOT NULL,
   hostname  TEXT    NOT NULL,
   start_ms  INTEGER NOT NULL,
 
   -- if you want to dedupe identity rows instead of inserting duplicates:
-  UNIQUE(writer_id, pid, name, hostname, start_ms)
+  UNIQUE(writer_id, pid, process_name, hostname, start_ms)
 );
 
 CREATE TABLE records (

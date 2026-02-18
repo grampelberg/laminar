@@ -112,7 +112,7 @@ impl WithSql for Identity<Claims> {
 
         sqlx::query(
             r#"
-                INSERT OR IGNORE INTO identity (writer_id, display_name, pid, name, hostname, start_ms)
+                INSERT OR IGNORE INTO identity (writer_id, display_name, pid, process_name, hostname, start_ms)
                 VALUES (?, ?, ?, ?, ?, ?)
             "#,
         )
@@ -137,7 +137,7 @@ impl WithSql for inspector::sink::Response<Claims, Record> {
             r#"
             SELECT pk
             FROM identity
-            WHERE writer_id = ? AND pid = ? AND name = ? AND hostname = ? AND start_ms = ?
+            WHERE writer_id = ? AND pid = ? AND process_name = ? AND hostname = ? AND start_ms = ?
             "#,
         )
         .bind(writer_id)
