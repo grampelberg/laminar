@@ -33,6 +33,7 @@ export const statusAtom = unwrap(
       dbSize: 0,
     },
 )
+statusAtom.debugLabel = 'statusAtom'
 
 export const sessionsAtom = atomWithRefresh(async get => {
   const db = await get(dbAtom)
@@ -43,6 +44,7 @@ export const sessionsAtom = atomWithRefresh(async get => {
 
   return JSON.parse(val.payload) as SessionsResult
 })
+sessionsAtom.debugLabel = 'sessionsAtom'
 
 export const statusUpdateAtom = atomEffect((get, set) => {
   void (async () => {

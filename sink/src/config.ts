@@ -52,6 +52,7 @@ export const configAtom = atom(
     set(getConfigAtom)
   },
 )
+configAtom.debugLabel = 'configAtom'
 
 export const retentionAtom = convertAtom(
   focusAtom(configAtom as any, (lens: any) =>

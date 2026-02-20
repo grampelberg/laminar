@@ -1551,5 +1551,26 @@ export default (function (a) {
         start_ms: 1771606753941,
       },
     },
+    sessionsAtom: {
+      value: {
+        total: 1,
+        rows: [
+          { name: 'foobar', last_seen: 1771623217824, current: 0, total: 1 },
+          { name: 'lever.lan', last_seen: 1771621827911, current: 1, total: 3 },
+        ],
+      },
+    },
+    statusAtom: { value: { dbSize: 172032 } },
+    configAtom: {
+      value: {
+        layer: { remote: null, display_name: 'foobar' },
+        reader: {
+          key: {
+            path: '/Users/thomas/Library/Application Support/dev.reasons.inspector/reader.key',
+          },
+        },
+        settings: { retention: 192 },
+      },
+    },
   }
 })({})

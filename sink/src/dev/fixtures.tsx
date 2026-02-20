@@ -11,6 +11,9 @@ import {
   CommandItem,
   CommandSeparator,
 } from '@/components/ui/command.tsx'
+import { getLogger } from '@/utils'
+
+const logger = getLogger(import.meta.url)
 
 type Snapshot = Map<Atom<unknown>, unknown>
 
