@@ -207,19 +207,6 @@
   }
 }
 
-/*@utility flash-border {
-  animation: flash-border var(--flash-duration, 500ms) ease-out;
-  animation-delay: var(--flash-delay, 0ms);
-  animation-fill-mode: both;
-}
-
-tr.flash-border {
-  animation: none;
-}
-tr.flash-border > td:first-child {
-  @apply flash-border;
-}*/
-
 @utility flash-border {
   position: relative;
 
@@ -300,5 +287,4 @@ tr.flash-row > td:first-child {
       color: inherit;
     }
   }
-
 }

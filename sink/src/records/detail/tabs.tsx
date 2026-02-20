@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react'
 
+import { Message } from '@/components/message.tsx'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx'
 import type { Identity } from '@/types/db.ts'
 
@@ -99,8 +100,8 @@ export const DetailTabs = ({
         <div className="space-y-4">
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground">Message</h3>
-            <div className="rounded-md border px-3 py-2 text-sm break-words whitespace-pre-wrap">
-              {row.message}
+            <div className="rounded-md border px-3 py-2">
+              <Message text={row.message} variant="detail" />
             </div>
           </div>
           <div className="space-y-2">

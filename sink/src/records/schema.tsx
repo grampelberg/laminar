@@ -2,6 +2,7 @@ import { createColumnHelper } from '@tanstack/react-table'
 import type { ReactNode } from 'react'
 
 import { levelName, LevelBadge } from '@/components/level-badge'
+import { Message } from '@/components/message'
 import { Source } from '@/components/source'
 import { Timestamp } from '@/components/timestamp'
 import type { RecordFilter, RecordRow } from '@/records/data'
@@ -41,7 +42,11 @@ export const recordsSchema = [
     },
     header: 'Level',
     meta: {
-      filterLabel: value => <span className="uppercase">{levelName(value as number | null | undefined)}</span>,
+      filterLabel: value => (
+        <span className="uppercase">
+          {levelName(value as number | null | undefined)}
+        </span>
+      ),
     } satisfies RecordsColumnMeta,
     size: 100,
     enableResizing: false,
@@ -62,9 +67,7 @@ export const recordsSchema = [
     size: 200,
   }),
   columnHelper.accessor('message', {
-    cell: ctx => (
-      <span className="block w-full truncate">{ctx.getValue()}</span>
-    ),
+    cell: ctx => <Message text={ctx.getValue()} variant="table" />,
     header: 'Message',
     meta: {
       cellClassName: 'overflow-hidden',
