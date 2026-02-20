@@ -6,6 +6,10 @@ import { Records } from '@/records.tsx'
 import { Settings } from '@/settings.tsx'
 import { Status } from '@/status.tsx'
 
+import { getLogger } from './utils'
+
+const logger = getLogger(import.meta.url)
+
 if (!globalThis.window.isTauri) {
   const mod = await import('@/dev/mock.ts')
   mod.installMock()

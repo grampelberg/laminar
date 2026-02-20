@@ -40,6 +40,7 @@ import { ScrollArea } from './scroll-area'
 const logger = getLogger(import.meta.url)
 
 const DEFAULT_ROW_HEIGHT = 40
+const LOADING_DELAY_STEP_MS = 40
 
 interface ColumnMeta {
   cellClassName?: string
@@ -58,6 +59,31 @@ export interface DataTableHandle {
 type RowPropsHook<Data extends RowData> = (
   row: TRow<Data>,
 ) => React.ComponentProps<'tr'>
+
+const Loading = <Data extends RowData>({
+  columns,
+  rowCount,
+}: {
+  columns: ReturnType<TTable<Data>['getVisibleLeafColumns']>
+  rowCount: number
+}) =>
+  Array.from({ length: rowCount }).map((_, index) => (
+    <TableRow className="h-10" key={`loading-${index}`}>
+      {columns.map((column: ReturnType<TTable<Data>['getVisibleLeafColumns']>[number]) => {
+        const meta = (column.columnDef.meta || {}) as ColumnMeta
+        return (
+          <UITableCell className={meta.cellClassName} key={column.id}>
+            <div
+              className="h-3 w-full animate-pulse rounded-sm bg-muted/70"
+              style={{
+                animationDelay: `${index * LOADING_DELAY_STEP_MS}ms`,
+              }}
+            />
+          </UITableCell>
+        )
+      })}
+    </TableRow>
+  ))
 
 const RowPropsContext = createContext<RowPropsHook<unknown> | undefined>(
   undefined,
@@ -190,6 +216,8 @@ const getPosition = (virtual: Virtualizer<HTMLDivElement, Element>) => {
 export interface DataTableProps<Data extends RowData> {
   table: TTable<Data>
   fullWidth?: boolean
+  loading?: boolean
+  loadingRowCount?: number
   useRowProps?: RowPropsHook<Data>
   virtualOpts?: Partial<ReactVirtualizerOptions<HTMLDivElement, Element>>
   onScroll: (viewport: Viewport) => void
@@ -199,6 +227,8 @@ const DataTableInner = <Data extends RowData>(
   {
     table,
     fullWidth = false,
+    loading = false,
+    loadingRowCount = 12,
     useRowProps,
     virtualOpts,
     onScroll,
@@ -246,6 +276,7 @@ const DataTableInner = <Data extends RowData>(
   }, [onScroll, position.top, position.bottom])
 
   const columnCount = table.getVisibleLeafColumns().length
+  const columns = table.getVisibleLeafColumns()
 
   return (
     <div
@@ -277,7 +308,11 @@ const DataTableInner = <Data extends RowData>(
                 <td colSpan={columnCount} style={{ height: spacer.top }} />
               </tr>
             )}
-            {rows.length ? (
+            {loading && (
+              <Loading columns={columns} rowCount={loadingRowCount} />
+            )}
+            {!loading && rows.length === 0 && <Empty colSpan={columnCount} />}
+            {rows.length > 0 && (
               <RowPropsContext.Provider
                 value={useRowProps as RowPropsHook<unknown> | undefined}
               >
@@ -289,8 +324,6 @@ const DataTableInner = <Data extends RowData>(
                   }}
                 />
               </RowPropsContext.Provider>
-            ) : (
-              <Empty colSpan={table.getVisibleLeafColumns().length} />
             )}
             {spacer.bottom > 0 && (
               <tr>

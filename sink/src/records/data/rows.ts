@@ -30,6 +30,7 @@ interface RowsCursor {
 interface RowsPage {
   cursor?: RowsCursor
   hasMore: boolean
+  loaded: boolean
   rows: RecordRow[]
 }
 
@@ -47,6 +48,7 @@ export const stateAtom = unwrap(
   prev =>
     prev ?? {
       hasMore: false,
+      loaded: false,
       cursor: undefined,
       rows: [],
     },
@@ -57,7 +59,6 @@ const cursorAtom = atomWithReset<RowsCursor | undefined>(undefined)
 
 const pageAtom = atomWithRefresh(async get => {
   const cursor = get(cursorAtom)
-  logger('fetch page', cursor)
 
   const db = await get(dbAtom)
   let query = get(queryAtom)
@@ -78,8 +79,11 @@ const pageAtom = atomWithRefresh(async get => {
   const fetched = await execute<RecordRow>(db, query.compile())
   const tail = fetched?.at(-1)
 
+  logger('fetched page', fetched?.length)
+
   return {
     hasMore: (fetched?.length || 0) > ROWS_CHUNK_SIZE,
+    loaded: true,
     cursor: tail && { id: tail.id, tsMs: tail.ts_ms },
     rows: fetched?.slice(0, ROWS_CHUNK_SIZE) || [],
   }
@@ -114,6 +118,7 @@ export const loadMoreAtom = atomEffect((get, set) => {
       return {
         rows: [...state.rows, ...page.rows],
         hasMore: page.hasMore,
+        loaded: true,
         cursor: page.cursor,
       }
     })
@@ -171,6 +176,7 @@ export const streamUpdateAtom = atomEffect((get, set) => {
       return {
         rows: markAdded(state.rows, page.rows),
         hasMore: page.hasMore,
+        loaded: true,
         cursor: page.cursor,
       }
     })

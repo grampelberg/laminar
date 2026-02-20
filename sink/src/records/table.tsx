@@ -35,7 +35,7 @@ export const __test = {
 }
 
 export const RecordsTable = () => {
-  const { rows } = useAtomValue(stateAtom)
+  const { rows, loaded } = useAtomValue(stateAtom)
   const filters = useAtomValue(filtersAtom)
   const [selected, setSelected] = useAtom(selectedAtom)
   const dataTableRef = useRef<DataTableHandle>(null)
@@ -95,6 +95,8 @@ export const RecordsTable = () => {
       ref={dataTableRef}
       table={table}
       fullWidth
+      loading={!loaded}
+      loadingRowCount={12}
       useRowProps={rowProps}
       virtualOpts={{
         overscan: OVERSCAN,

@@ -56,13 +56,13 @@ export const recordsSchema = [
       const source = ctx.getValue()
       return (
         <FilterCell filter={{ column: 'source', value: source }}>
-          <Source value={source} />
+          <Source className="block truncate font-mono text-xs" value={source} />
         </FilterCell>
       )
     },
     header: 'Source',
     meta: {
-      cellClassName: 'truncate font-mono text-xs',
+      cellClassName: 'overflow-hidden',
     } satisfies RecordsColumnMeta,
     size: 200,
   }),

@@ -12,10 +12,6 @@
   - There should probably be a reduction in logging for receiving messages.
     maybe move to trace from debug?
 - Total rows should probably update whether you're updating the view or filter.
-- The UI is loading white -> dark -> blank -> finally rendering. Is there
-  suspense or something getting in the way? Do I need a splash screen?
-- Get the fixture to have status and sessions in it. There might be a problem
-  with atomWithRefresh being `debugPrivate`.
 
 ## Bugs
 
