@@ -4,13 +4,16 @@ pub mod config;
 mod reader;
 pub mod sink;
 
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use eyre::Result;
 use iroh::{Endpoint, EndpointAddr, address_lookup::MdnsAddressLookup};
 pub use reader::Reader;
 use tokio::{
-    sync::mpsc::{self, Receiver, Sender},
+    sync::{
+        broadcast,
+        mpsc::{self, Receiver, Sender},
+    },
     task::JoinHandle,
 };
 use tracing::{Instrument, Subscriber, field::Visit};
@@ -19,38 +22,16 @@ use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
 pub use crate::{api::*, config::Config};
 use crate::{
     config::LayerConfig,
-    sink::{EmitterOpts, SinkDriver, spawn_driver},
+    sink::{EmitterOpts, EmitterSender, SinkDriver, emitter},
 };
 
 const DROP_TARGET: &str = "inspector::drop";
 
+#[derive(bon::Builder)]
 pub struct Writer {
-    rx: Receiver<Record>,
+    rx: broadcast::Receiver<Arc<Record>>,
     config: LayerConfig,
-}
-
-async fn run_with_driver(
-    opts: EmitterOpts,
-    driver: impl SinkDriver + Send + Sync + 'static,
-    mut rx: Receiver<Record>,
-) -> Result<JoinHandle<()>> {
-    let emitter = spawn_driver(opts.buffer_size, driver).await?;
-
-    let emitter_span =
-        tracing::error_span!(parent: &tracing::Span::current(), "emitter");
-
-    Ok(tokio::spawn(
-        async move {
-            while let Some(msg) = rx.recv().await {
-                if emitter.send(msg).is_err() {
-                    tracing::error!("shutting down writer, driver has stopped");
-
-                    return;
-                }
-            }
-        }
-        .instrument(emitter_span),
-    ))
+    source: Option<SourceProcess>,
 }
 
 // TODO:
@@ -85,10 +66,12 @@ impl Writer {
             .endpoint(endpoint)
             .opts(opts.clone())
             .address(addr)
-            .identity(Claims {
-                display_name: self.config.display_name,
-                process: Process::default(),
-            })
+            .identity(
+                Claims::builder()
+                    .maybe_display_name(self.config.display_name)
+                    .maybe_source(self.source)
+                    .build(),
+            )
             .build()
             .into_driver();
 
@@ -101,7 +84,7 @@ impl Writer {
             )
         }
 
-        run_with_driver(opts, driver, self.rx).await
+        Ok(tokio::spawn(driver.run(self.rx).in_current_span()))
     }
 }
 
@@ -128,14 +111,18 @@ impl InspectorLayerBuilder {
             None => Config::load()?.layer(),
         };
 
-        let (tx, rx) = mpsc::channel(InspectorLayer::BUFFER_CAPACITY);
+        let (tx, rx) = emitter(EmitterOpts::default().buffer_size);
 
         Ok((
             InspectorLayer {
                 tx,
                 disabled: config.remote.is_none(),
             },
-            Writer { rx, config },
+            Writer::builder()
+                .rx(rx)
+                .config(config)
+                .source(SourceProcess::default())
+                .build(),
         ))
     }
 }
@@ -147,7 +134,7 @@ impl InspectorLayerBuilder {
 // stack is going to need to be pluggable and most of tokio won't be usable.
 pub struct InspectorLayer {
     disabled: bool,
-    tx: Sender<Record>,
+    tx: EmitterSender<Record>,
 }
 
 impl InspectorLayer {
@@ -166,12 +153,9 @@ impl InspectorLayer {
             return;
         }
 
-        let Ok(permit) = self.tx.try_reserve() else {
+        if let Err(_) = self.tx.send(record) {
             tracing::debug!("unable to send record");
-            return;
-        };
-
-        permit.send(record);
+        }
     }
 
     pub fn disabled(&self) -> bool {
@@ -247,14 +231,7 @@ where
 
         metrics::counter!("layer.span").increment(1);
 
-        let record = Record::builder()
-            .span_id(id.into_u64())
-            .kind(Kind::Span)
-            .maybe_parent(attrs.parent().map(tracing::span::Id::into_u64))
-            .metadata(attrs.metadata())
-            .fields_visitor(|v| attrs.record(v))
-            .build();
-        self.send(record);
+        self.send(Record::from_span(attrs, id));
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<'_, S>) {
@@ -293,81 +270,7 @@ where
 
         metrics::counter!("layer.event").increment(1);
 
-        let record = Record::builder()
-            .kind(Kind::Event)
-            .maybe_parent(event.parent().map(|i| i.into_u64()))
-            .metadata(event.metadata())
-            .fields_visitor(|v| event.record(v))
-            .build();
-        self.send(record);
-    }
-}
-
-#[derive(Default)]
-struct FieldVisitor {
-    fields: HashMap<String, serde_json::Value>,
-}
-
-impl Visit for FieldVisitor {
-    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
-        let value = serde_json::Number::from_f64(value)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null);
-        self.fields.insert(field.name().to_string(), value);
-    }
-
-    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::Value::from(value));
-    }
-
-    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::Value::from(value));
-    }
-
-    fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::Value::from(value));
-    }
-
-    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::Value::from(value));
-    }
-
-    fn record_debug(
-        &mut self,
-        field: &tracing::field::Field,
-        value: &dyn fmt::Debug,
-    ) {
-        self.fields.insert(
-            field.name().to_string(),
-            serde_json::Value::String(format!("{value:?}")),
-        );
-    }
-
-    #[cfg(feature = "valuable")]
-    fn record_value(
-        &mut self,
-        field: &tracing::field::Field,
-        value: valuable::Value<'_>,
-    ) {
-        self.fields.insert(
-            field.name().to_string(),
-            serde_json::Value::String(format!("{value:?}")),
-        );
-    }
-
-    fn record_error(
-        &mut self,
-        field: &tracing::field::Field,
-        value: &(dyn std::error::Error + 'static),
-    ) {
-        self.fields.insert(
-            field.name().to_string(),
-            serde_json::Value::String(value.to_string()),
-        );
+        self.send(Record::from_event(event));
     }
 }
 
@@ -536,7 +439,7 @@ mod test {
 
         time::timeout(
             Duration::from_millis(10),
-            run_with_driver(EmitterOpts::default(), MockDriver, writer.rx),
+            tokio::spawn(MockDriver {}.run(writer.rx)),
         )
         .await??;
 

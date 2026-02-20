@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils'
 
 const levels = ['trace', 'debug', 'info', 'warn', 'error', 'off'] as const
 
-export const levelName = (level: number) => levels[level] ?? String(level)
+export const levelName = (level?: number | null) =>
+  typeof level === 'number' ? levels[level] ?? String(level) : 'none'
 
 const levelBadgeVariants = cva(
   ['uppercase', 'text-xxs', 'font-semibold', 'tracking-wider', 'w-full'],
@@ -33,6 +34,11 @@ const levelBadgeVariants = cva(
           'border-stroke-level-off',
           'text-text-level-off',
         ],
+        none: [
+          'bg-muted',
+          'border-transparent',
+          'text-muted-foreground',
+        ],
         trace: [
           'bg-fill-level-trace',
           'border-stroke-level-trace',
@@ -52,7 +58,7 @@ export const LevelBadge = ({
   className,
   level,
   ...props
-}: { level: number } & ComponentProps<typeof Badge>) => {
+}: { level?: number | null } & ComponentProps<typeof Badge>) => {
   const name = levelName(level)
   return (
     <Badge className={cn(levelBadgeVariants({ level: name }), className)} {...props}>

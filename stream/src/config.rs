@@ -39,7 +39,7 @@ impl Default for ReaderConfig {
     }
 }
 
-#[derive(Default, Debug, Deserialize, Serialize)]
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     layer: LayerConfig,
     reader: ReaderConfig,

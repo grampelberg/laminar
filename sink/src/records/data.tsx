@@ -4,24 +4,24 @@ import { type Selectable, sql } from 'kysely'
 
 import { dbAtom, queryBuilder, execute } from '@/db.tsx'
 import { filtersAtom } from '@/records/data/filter.ts'
-import type { Identity, Records } from '@/types/db.ts'
+import type { Identity } from '@/types/db.ts'
 import { getLogger } from '@/utils.ts'
+import type { RecordRow } from './data/rows.ts'
 
 export { __test, positionAtom, stateAtom } from './data/rows.ts'
 export { filtersAtom, type RecordFilter } from './data/filter.ts'
+export type { RecordRow } from './data/rows.ts'
 
 const logger = getLogger(import.meta.url)
-
-export type RecordRow = Selectable<Records> & {
-  _added?: number
-  message?: string
-}
 
 export const queryAtom = atom(get => {
   let query = queryBuilder.selectFrom('records').where('kind', '=', 0)
 
   for (const filter of get(filtersAtom)) {
-    query = query.where(filter.column, '=', filter.value as never)
+    query =
+      filter.value === null
+        ? query.where(filter.column, 'is', filter.value as never)
+        : query.where(filter.column, '=', filter.value as never)
   }
 
   return query

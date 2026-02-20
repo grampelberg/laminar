@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use eyre::{Result, eyre};
 use futures::{
     future::join_all,
@@ -15,9 +15,13 @@ use tracing_subscriber::{EnvFilter, prelude::*};
 
 #[derive(Parser, Debug)]
 #[command(name = "loadgen", about = "Load generator CLI")]
-struct Args {
-    #[arg(long, value_name = "PATH")]
-    inspector_config: Option<String>,
+pub struct Args {
+    #[arg(from_global)]
+    config: Config,
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    emit: bool,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Pretty)]
+    format: OutputFormat,
     #[arg(long, default_value_t = 10, value_name = "LOGS_PER_SECOND")]
     rate: u64,
     #[arg(long, default_value_t = 25, value_name = "WORDS")]
@@ -28,11 +32,15 @@ struct Args {
     jitter_percent: u8,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    color_eyre::install()?;
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+pub enum OutputFormat {
+    Full,
+    Compact,
+    Pretty,
+    Json,
+}
 
-    let args = Args::parse();
+pub async fn run(args: Args) -> Result<()> {
     if args.rate == 0 {
         return Err(eyre!("--rate must be > 0"));
     }
@@ -46,17 +54,30 @@ async fn main() -> Result<()> {
         return Err(eyre!("--jitter-percent must be <= 100"));
     }
 
-    let config = args
-        .inspector_config
-        .map(|p| Config::load_from_path(p).expect("can load config").layer());
+    let (layer, writer) = if args.emit {
+        let (layer, writer) = InspectorLayer::builder()
+            .config(args.config.layer())
+            .build()?;
+        (Some(layer), Some(writer))
+    } else {
+        (None, None)
+    };
 
-    let (layer, writer) =
-        InspectorLayer::builder().maybe_config(config).build()?;
     let env_filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
-        .from_env_lossy();
+        .from_env_lossy()
+        .add_directive("loadgen=trace".parse().expect("is valid"));
 
-    let fmt_layer = tracing_subscriber::fmt::layer().pretty();
+    let fmt_layer = match args.format {
+        OutputFormat::Full => tracing_subscriber::fmt::layer().boxed(),
+        OutputFormat::Compact => {
+            tracing_subscriber::fmt::layer().compact().boxed()
+        }
+        OutputFormat::Pretty => {
+            tracing_subscriber::fmt::layer().pretty().boxed()
+        }
+        OutputFormat::Json => tracing_subscriber::fmt::layer().json().boxed(),
+    };
 
     tracing_subscriber::registry()
         .with(env_filter)
@@ -64,7 +85,9 @@ async fn main() -> Result<()> {
         .with(layer)
         .init();
 
-    writer.run().await?;
+    if let Some(writer) = writer {
+        writer.run().await?;
+    }
 
     let base_delay =
         Duration::from_secs_f64(args.threads as f64 / args.rate as f64);
@@ -119,6 +142,5 @@ async fn main() -> Result<()> {
     }
 
     join_all(handles).await;
-
     Ok(())
 }

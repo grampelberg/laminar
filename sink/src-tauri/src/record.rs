@@ -38,30 +38,34 @@ async fn insert_record_data(
           ts_ms,
           received_ms,
           span_id,
-          parent_span_id,
-          target,
+          parent_id,
+          source,
           level,
-          name,
-          file,
-          line,
-          module_path,
+          message,
           fields_json
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(identity_pk)
     .bind(body.kind.clone() as i64)
     .bind(body.timestamp as i64)
     .bind(received_at as i64)
-    .bind(body.span_id.map(|v| v as i64))
-    .bind(body.parent.map(|v| v as i64))
-    .bind(&body.metadata.target)
-    .bind(body.metadata.level.clone() as i64)
-    .bind(&body.metadata.name)
-    .bind(body.metadata.file.as_deref())
-    .bind(body.metadata.line.map(|v| v as i64))
-    .bind(body.metadata.module_path.as_deref())
+    .bind(
+        body.trace
+            .as_ref()
+            .and_then(|trace| trace.span)
+            .map(|v| v as i64),
+    )
+    .bind(
+        body.trace
+            .as_ref()
+            .and_then(|trace| trace.parent)
+            .map(|v| v as i64),
+    )
+    .bind(body.source.as_deref())
+    .bind(body.level.clone().map(|level| level as i64))
+    .bind(&body.message)
     .bind(&body.fields)
     .execute(pool)
     .await?;
@@ -96,8 +100,8 @@ async fn upsert_connected_session(
     )
     .bind(session_id)
     .bind(identity_pk)
-    .bind(received_at as i64)
-    .bind(received_at as i64)
+    .bind(received_at)
+    .bind(received_at)
     .bind(disconnected_at)
     .bind(reason)
     .execute(pool)
@@ -109,6 +113,21 @@ async fn upsert_connected_session(
 impl WithSql for Identity<Claims> {
     async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
         let writer_id = self.observed.to_string();
+        let pid = self
+            .assertion
+            .source
+            .as_ref()
+            .map(|source| source.pid as i64);
+        let process_name = self
+            .assertion
+            .source
+            .as_ref()
+            .map(|source| source.name.as_str());
+        let start_ms = self
+            .assertion
+            .source
+            .as_ref()
+            .map(|source| source.start as i64);
 
         sqlx::query(
             r#"
@@ -118,10 +137,10 @@ impl WithSql for Identity<Claims> {
         )
         .bind(writer_id.as_str())
         .bind(self.assertion.display_name.as_deref())
-        .bind(self.assertion.process.pid as i64)
-        .bind(&self.assertion.process.name)
-        .bind(&self.assertion.process.hostname)
-        .bind(self.assertion.process.start as i64)
+        .bind(pid)
+        .bind(process_name)
+        .bind(&self.assertion.hostname)
+        .bind(start_ms)
         .execute(pool)
         .await?;
 
@@ -137,14 +156,36 @@ impl WithSql for inspector::sink::Response<Claims, Record> {
             r#"
             SELECT pk
             FROM identity
-            WHERE writer_id = ? AND pid = ? AND process_name = ? AND hostname = ? AND start_ms = ?
+            WHERE writer_id = ?
+              AND pid IS ?
+              AND process_name IS ?
+              AND hostname = ?
+              AND start_ms IS ?
             "#,
         )
         .bind(writer_id)
-        .bind(self.identity.assertion.process.pid as i64)
-        .bind(&self.identity.assertion.process.name)
-        .bind(&self.identity.assertion.process.hostname)
-        .bind(self.identity.assertion.process.start as i64)
+        .bind(
+            self.identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.pid as i64),
+        )
+        .bind(
+            self.identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.name.as_str()),
+        )
+        .bind(&self.identity.assertion.hostname)
+        .bind(
+            self.identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.start as i64),
+        )
         .fetch_one(pool)
         .await?
         .get("pk");

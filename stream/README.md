@@ -1,5 +1,11 @@
 # Inspector
 
+## Test data
+
+- `loadgen` - generate very basic log lines in different formats. You can `--emit` them by default and/or change the format to test `tap` parsing.
+- [loghub](https://github.com/logpai/loghub) - a bunch of different log formats that are useful to pipe into `tap` and see what happens. These are exclusively focused on log parsing, and therefore are only in a text format.
+- [Github archive](https://www.gharchive.org) - JSONL source of data. This isn't logs, so you'll miss out on `message`.
+
 ## Note
 
 - `iroh::socket::remote_map::remote_state::RemoteStateActor` currently gets

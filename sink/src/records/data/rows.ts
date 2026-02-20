@@ -7,7 +7,7 @@ import {
   RESET,
   unwrap,
 } from 'jotai/utils'
-import { type Selectable, sql } from 'kysely'
+import { type Selectable } from 'kysely'
 
 import { atomWithOwnedDefault } from '@/atom'
 import { dbAtom, execute } from '@/db.tsx'
@@ -40,7 +40,6 @@ interface Position {
 
 export type RecordRow = Selectable<Records> & {
   _added?: number
-  message?: string
 }
 
 export const stateAtom = unwrap(
@@ -64,7 +63,6 @@ const pageAtom = atomWithRefresh(async get => {
   let query = get(queryAtom)
     .orderBy('ts_ms', 'desc')
     .orderBy('id', 'desc')
-    .select([sql<string>`json_extract(fields_json, '$.message')`.as('message')])
     .selectAll()
     .limit(ROWS_CHUNK_SIZE + 1)
 

@@ -1,4 +1,4 @@
-use std::{future, sync::Arc};
+use std::{future, sync::Arc, time::Duration};
 
 use eyre::Result;
 use iroh::{
@@ -119,7 +119,11 @@ impl Driver {
             return Err("failed to get stream, disconnected?".into());
         };
 
-        stream.write_u16(bytes.len() as u16).await?;
+        if bytes.len() > u32::MAX as usize {
+            return Err("message too long".into());
+        }
+        
+        stream.write_u32(bytes.len() as u32).await?;
         stream.write_all(bytes).await?;
 
         metrics::counter!("driver.emit").increment(1);
@@ -131,6 +135,7 @@ impl Driver {
         T: Serialize,
     {
         let bytes = postcard::to_allocvec(&data)?;
+
         self.emit_bytes(&bytes).await
     }
 }
@@ -171,18 +176,19 @@ impl SinkDriver for Driver {
                 metrics::counter!("driver.connect").increment(1);
                 metrics::gauge!("driver.connected").set(1.0);
 
+                tracing::debug!(peer = self.addr.id.to_string(), "connected");
+
                 self.connection = Some(conn);
                 self.stream = Some(stream);
 
                 // Avoid borrowing `self` immutably + mutably in one call.
                 let identity = self.identity.clone();
-                self.emit_bytes(&identity)
-                    .await
-                    .inspect_err(|e| {
-                        metrics::counter!("driver.error.emit").increment(1);
-                        tracing::warn!(err = ?e, "failed to send");
-                    })
-                    .ok();
+                if let Err(e) = self.emit_bytes(&identity).await {
+                    metrics::counter!("driver.error.emit").increment(1);
+                    tracing::warn!(err = ?e, "failed to send");
+
+                    break;
+                }
 
                 continue;
             }
@@ -198,7 +204,7 @@ impl SinkDriver for Driver {
                 }
                 r = rx.recv() => {
                     match r {
-                        Err(broadcast::error::RecvError::Closed) => return,
+                        Err(broadcast::error::RecvError::Closed) => break,
                         Err(broadcast::error::RecvError::Lagged(i)) => {
                             metrics::counter!("driver.lagged").increment(i as u64);
                             tracing::warn!(count = i, "skipped");
@@ -213,6 +219,25 @@ impl SinkDriver for Driver {
                         }
                     }
                 }
+            }
+        }
+
+        tracing::info!(peer = self.addr.id.to_string(), "disconnecting...");
+
+        if let Some(mut stream) = self.stream.take() {
+            stream
+                .finish()
+                .inspect_err(
+                    |e| tracing::warn!(err = ?e, "failed to close stream"),
+                )
+                .ok();
+
+            match tokio::time::timeout(Duration::from_secs(5), stream.stopped())
+                .await
+            {
+                Ok(Ok(_)) => {}
+                Ok(Err(err)) => tracing::warn!(?err, "stopped failed"),
+                Err(_) => tracing::warn!("timed out waiting for stream stop"),
             }
         }
 

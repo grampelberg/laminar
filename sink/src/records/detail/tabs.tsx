@@ -96,7 +96,18 @@ export const DetailTabs = ({
     tab,
     <>
       <DirectionItem value="fields">
-        <FieldTable fields={fields} />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Message</h3>
+            <div className="rounded-md border px-3 py-2 text-sm break-words whitespace-pre-wrap">
+              {row.message}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Fields</h3>
+            <FieldTable emptyState="No fields" fields={fields} />
+          </div>
+        </div>
       </DirectionItem>
       <DirectionItem value="json">
         <JSONTab fields={fields} />

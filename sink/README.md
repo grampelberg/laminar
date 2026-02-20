@@ -24,6 +24,15 @@ bun dev
 
 If you'd like to test without `StrictMode`, set `VITE_STRICT_MODE=false`.
 
+While it is possible to use fixtures to get data in the UI, you can also
+generate some yourself:
+
+```bash
+cargo run --bin cli -- loadgen
+```
+
+Configure the address of your UI via the config file or env vars.
+
 ### Tauri <> Browser
 
 We strive to make sure the UI is usable through the browser in addition to
@@ -172,3 +181,5 @@ backend.
   sink"?
 - I like the name "substrate" but I'm not sure it matches with the project. It'd
   be a logo with a tree and showing its roots down in the dirt.
+- There are two major pieces that most users will use, the stdin inlet/source
+  and the log viewer (destination).

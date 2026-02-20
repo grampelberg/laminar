@@ -5,6 +5,7 @@ import { VisuallyHidden } from 'radix-ui'
 import { useEffect, useState, useCallback } from 'react'
 
 import { LevelBadge } from '@/components/level-badge.tsx'
+import { Source } from '@/components/source.tsx'
 import { Timestamp } from '@/components/timestamp.tsx'
 import {
   Sheet,
@@ -42,7 +43,9 @@ export const DetailSheet = ({
       className="sm:max-w-3xl lg:max-w-[45vw]"
       onInteractOutside={event => {
         const target = event.target as HTMLElement | null
-        if (target?.closest('[data-slot="table-row"]')) {
+        // table-row = allow clicking rows to change the detail view.
+        // command = don't close when the dev palette opens, this allows taking snapshots.
+        if (target?.closest('[data-slot="table-row"], [data-slot="command"]')) {
           event.preventDefault()
         }
       }}
@@ -62,7 +65,10 @@ export const DetailSheet = ({
 
               <div className="grid grid-cols-[100px_auto] items-center gap-3 text-sm text-muted-foreground">
                 <LevelBadge className="w-15" level={row.level} />
-                <span className="truncate font-mono text-xs">{row.target}</span>
+                <Source
+                  className="truncate font-mono text-xs"
+                  value={row.source}
+                />
               </div>
 
               <VisuallyHidden.Root asChild>

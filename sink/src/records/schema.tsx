@@ -2,6 +2,7 @@ import { createColumnHelper } from '@tanstack/react-table'
 import type { ReactNode } from 'react'
 
 import { levelName, LevelBadge } from '@/components/level-badge'
+import { Source } from '@/components/source'
 import { Timestamp } from '@/components/timestamp'
 import type { RecordFilter, RecordRow } from '@/records/data'
 
@@ -30,29 +31,30 @@ export const recordsSchema = [
     enableResizing: false,
   }),
   columnHelper.accessor('level', {
-    cell: ctx => (
-      <FilterCell filter={{ column: 'level', value: ctx.getValue() }}>
-        <LevelBadge level={ctx.getValue()} />
-      </FilterCell>
-    ),
+    cell: ctx => {
+      const level = ctx.getValue()
+      return (
+        <FilterCell filter={{ column: 'level', value: level }}>
+          <LevelBadge level={level} />
+        </FilterCell>
+      )
+    },
     header: 'Level',
     meta: {
-      filterLabel: value =>
-        typeof value === 'number' ? (
-          <span className="uppercase">{levelName(value)}</span>
-        ) : (
-          String(value)
-        ),
+      filterLabel: value => <span className="uppercase">{levelName(value as number | null | undefined)}</span>,
     } satisfies RecordsColumnMeta,
     size: 100,
     enableResizing: false,
   }),
-  columnHelper.accessor('target', {
-    cell: ctx => (
-      <FilterCell filter={{ column: 'target', value: ctx.getValue() }}>
-        <div>{ctx.getValue()}</div>
-      </FilterCell>
-    ),
+  columnHelper.accessor('source', {
+    cell: ctx => {
+      const source = ctx.getValue()
+      return (
+        <FilterCell filter={{ column: 'source', value: source }}>
+          <Source value={source} />
+        </FilterCell>
+      )
+    },
     header: 'Source',
     meta: {
       cellClassName: 'truncate font-mono text-xs',

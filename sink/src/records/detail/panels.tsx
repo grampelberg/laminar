@@ -1,10 +1,10 @@
+import type { Selectable } from 'kysely'
 import { useMemo } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import {
   oneDark,
   oneLight,
 } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import type { Selectable } from 'kysely'
 
 import {
   Table,
@@ -33,7 +33,13 @@ const renderValue = (value: unknown) => {
   return JSON.stringify(value)
 }
 
-export const FieldTable = ({ fields }: { fields: Record<string, unknown> }) => {
+export const FieldTable = ({
+  fields,
+  emptyState = 'No data',
+}: {
+  fields: Record<string, unknown>
+  emptyState?: string
+}) => {
   const rows = useMemo(
     () =>
       Object.entries(fields).toSorted(([keyA], [keyB]) =>
@@ -45,6 +51,16 @@ export const FieldTable = ({ fields }: { fields: Record<string, unknown> }) => {
   return (
     <Table>
       <TableBody>
+        {rows.length === 0 && (
+          <TableRow>
+            <TableCell
+              className="py-8 text-center text-sm text-muted-foreground"
+              colSpan={2}
+            >
+              {emptyState}
+            </TableCell>
+          </TableRow>
+        )}
         {rows.map(([key, value]) => (
           <TableRow key={key}>
             <TableCell className="w-56 max-w-56 min-w-56 font-mono text-xs">

@@ -18,43 +18,42 @@ export interface _SqlxMigrations {
   version: string | null;
 }
 
-export interface Events {
-  id: Generated<number>;
-  identity_pk: number;
-  kind: number;
-  received_ms: number;
-}
-
 export interface Identity {
   display_name: string | null;
   hostname: string;
-  process_name: string;
-  pid: number;
+  pid: number | null;
   pk: Generated<number>;
-  start_ms: number;
+  process_name: string | null;
+  start_ms: number | null;
   writer_id: string;
 }
 
 export interface Records {
   fields_json: string;
-  file: string | null;
   id: Generated<number>;
   identity_pk: number;
   kind: number;
-  level: number;
-  line: number | null;
-  module_path: string | null;
-  name: string;
-  parent_span_id: number | null;
+  level: number | null;
+  message: string;
+  parent_id: number | null;
   received_ms: number;
+  source: string | null;
   span_id: number | null;
-  target: string;
   ts_ms: number;
+}
+
+export interface Sessions {
+  connected_at: number;
+  disconnected_at: number | null;
+  identity_pk: number;
+  last_seen_at: number;
+  reason: number | null;
+  session_id: string;
 }
 
 export interface DB {
   _sqlx_migrations: _SqlxMigrations;
-  events: Events;
   identity: Identity;
   records: Records;
+  sessions: Sessions;
 }

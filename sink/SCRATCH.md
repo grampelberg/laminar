@@ -4,10 +4,26 @@
 - Get a status page that shows:
   - Make sure `display_name` is working correctly from the load generator.
 - Backend -> frontend error reporting
+- Get the github dump working.
+  - The console gets wedged, probably from printing "fetch page".
+  - Rendering the table rows is consuming CPU and it speeds up a little bit by
+    stopping the UI updates.
+  - How is tauri handling threads? The CPU maxed out at 100% and didn't go any
+    higher, makes me think multi-core isn't being used. Could that be a sqlx
+    issue?
+  - There should probably be a reduction in logging for receiving messages.
+    maybe move to trace from debug?
+- Total rows should probably update whether you're updating the view or filter.
+- The UI is loading white -> dark -> blank -> finally rendering. Is there
+  suspense or something getting in the way? Do I need a splash screen?
+- Support ANSI from log lines.
+- Get the fixture to have status and sessions in it. There might be a problem
+  with atomWithRefresh being `debugPrivate`.
+- Work with nested objects
+  - I need to update the load generator to publish nested objects
 
 ## Bugs
 
--
 - There's something weird about endpoints and reconnecting if you've failed in
   the past. I had the app crash on an endpoint and then, even after restarts,
   loadgen refused to connect to that endpoint. I made a new key and, voila, it
@@ -40,15 +56,18 @@
 
 ## Frontend
 
+- For JSON messages, it is tough to read what's going on (as expected). Maybe it
+  would be nice to have the message be json syntax highlighted and multi-line if
+  the message is in json?
+  - At the bare minimum, maybe do the formatting as part of the "message" view
+    for detail.
+- Need to handle multi-level json objects in the detail view.
 - I'm not sure source or level are especially helpful. The source is definitely
   taking up a ton of space. They're both nice for filtering, but maybe they
   should go on the right instead of the left?
-- Wire the json view up to the dark/light mode selector.
 - Add routing that can target state like row and sidebar.
   - I don't want to link to a specific row in the infinite scroll, as that will
     be out of date quickly. Maybe there should be a "detail" view for a line?
-- Opening the sidebar runs all in the click handler and takes ~200ms. That needs
-  to get cleaned up. I assume it is from the JSON.parse().
 - Is there a way to make this all work via the keyboard exclusively? Maybe the
   command palette can expand to have extra functionality?
 - If you're filtering, there's no visual way to know whether you're actually
@@ -68,9 +87,6 @@
 ### Records
 
 - Hook routes up to show/hide the sidebar.
-- Work with nested objects
-  - I need to update the load generator to publish nested objects
-- Animate changing the sheet's values. Just opacity?
 - Show renders in the table by field type (timestamp is an actual timestamp,
   level and kind as well).
 

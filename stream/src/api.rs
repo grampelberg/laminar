@@ -1,11 +1,14 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+mod record;
+
+use std::{str::FromStr, time::{SystemTime, UNIX_EPOCH}};
 
 use iroh::PublicKey;
+#[cfg(target_os = "macos")]
+use libproc::{bsd_info::BSDInfo, proc_pid};
 use serde::{Deserialize, Serialize};
 use strum::FromRepr;
-use tracing::field::Visit;
 
-use crate::FieldVisitor;
+pub use crate::api::record::Record;
 
 pub(crate) fn now() -> i64 {
     SystemTime::now()
@@ -44,43 +47,59 @@ impl From<&tracing::Level> for Level {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Metadata {
-    pub name: String,
-    pub target: String,
-    pub level: Level,
-    pub file: Option<String>,
-    pub line: Option<u32>,
-    pub module_path: Option<String>,
-}
+impl FromStr for Level {
+    type Err = ();
 
-impl From<&tracing::Metadata<'_>> for Metadata {
-    fn from(meta: &tracing::Metadata<'_>) -> Self {
-        Metadata {
-            name: meta.name().to_string(),
-            target: meta.target().to_string(),
-            level: meta.level().into(),
-            file: meta.file().map(|f| f.to_string()),
-            line: meta.line(),
-            module_path: meta.module_path().map(|m| m.to_string()),
+    fn from_str(level: &str) -> Result<Self, Self::Err> {
+        match level.trim().to_ascii_lowercase().as_str() {
+            "trace" | "trc" => Ok(Level::Trace),
+            "debug" | "dbg" => Ok(Level::Debug),
+            "info" | "information" => Ok(Level::Info),
+            "warn" | "warning" => Ok(Level::Warn),
+            "error" | "err" | "fatal" | "critical" => Ok(Level::Error),
+            "off" => Ok(Level::Off),
+            _ => Err(()),
         }
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Process {
+impl TryFrom<i64> for Level {
+    type Error = ();
+
+    fn try_from(level: i64) -> Result<Self, ()> {
+        match level {
+            0 | 10 => Ok(Level::Trace),
+            1 | 20 => Ok(Level::Debug),
+            2 | 30 => Ok(Level::Info),
+            3 | 40 => Ok(Level::Warn),
+            4 | 50 => Ok(Level::Error),
+            5 => Ok(Level::Off),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<u64> for Level {
+    type Error = ();
+
+    fn try_from(level: u64) -> Result<Self, ()> {
+        i64::try_from(level)
+            .map_err(|_| ()) //
+            .and_then(Level::try_from)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+pub struct SourceProcess {
     pub pid: u32,
     pub name: String,
-    pub hostname: String,
     pub start: u64,
 }
 
-impl Default for Process {
-    fn default() -> Process {
+impl Default for SourceProcess {
+    fn default() -> SourceProcess {
         let pid = std::process::id();
-        let hostname = hostname::get()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or("unknown".to_string());
+
         let name = std::env::current_exe()
             .map(|p| {
                 p.file_name()
@@ -90,62 +109,65 @@ impl Default for Process {
             .unwrap_or("unknown".to_string());
         let start = now() as u64;
 
-        Process {
-            pid,
+        SourceProcess { pid, name, start }
+    }
+}
+
+impl From<String> for SourceProcess {
+    fn from(name: String) -> Self {
+        Self {
+            pid: 0,
             name,
-            hostname,
-            start,
+            start: now() as u64,
         }
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[cfg(target_os = "macos")]
+impl TryFrom<u32> for SourceProcess {
+    type Error = String;
+
+    fn try_from(pid: u32) -> Result<Self, Self::Error> {
+        let info = proc_pid::pidinfo::<BSDInfo>(pid as i32, 0)?;
+
+        Ok(SourceProcess {
+            pid,
+            name: proc_pid::name(pid as i32)?,
+            start: (info.pbi_start_tvsec as u64) * 1_000
+                + (info.pbi_start_tvusec as u64) / 1_000,
+        })
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+impl From<u32> for SourceProcess {
+    fn from(pid: u32) -> Self {
+        SourceProcess {
+            pid,
+            name: "unknown".to_string(),
+            start: 0,
+        }
+    }
+}
+
+fn get_hostname() -> String {
+    hostname::get()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or("unknown".to_string())
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, bon::Builder)]
 pub struct Claims {
+    #[builder(default = get_hostname())]
+    pub hostname: String,
     pub display_name: Option<String>,
-    pub process: Process,
+    pub source: Option<SourceProcess>,
 }
 
-// TODO: move into its own crate
-#[derive(Debug, Deserialize, Serialize, bon::Builder)]
-pub struct Record {
-    pub span_id: Option<u64>,
-    pub kind: Kind,
-    #[builder(default = now())]
-    pub timestamp: i64,
-    #[builder(into)]
-    pub metadata: Metadata,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TraceId {
+    pub span: Option<u64>,
     pub parent: Option<u64>,
-    pub fields: String,
-}
-
-impl Record {
-    pub fn encode(&self) -> Result<Vec<u8>, serde_json::Error> {
-        serde_json::to_vec(self)
-    }
-
-    pub fn decode(data: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(data)
-    }
-}
-
-impl<S> RecordBuilder<S>
-where
-    S: record_builder::State,
-{
-    pub fn fields_visitor<F>(
-        self,
-        record: F,
-    ) -> RecordBuilder<record_builder::SetFields<S>>
-    where
-        F: FnOnce(&mut dyn Visit),
-        S::Fields: record_builder::IsUnset,
-    {
-        let mut visitor = FieldVisitor::default();
-        record(&mut visitor);
-        let fields = serde_json::to_string(&visitor.fields)
-            .unwrap_or_else(|_| "{}".to_string());
-        self.fields(fields)
-    }
 }
 
 #[derive(Debug, bon::Builder)]

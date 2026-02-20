@@ -1,7 +1,11 @@
 mod driver;
 mod session;
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    io::{Error as IoError, ErrorKind},
+    sync::Arc,
+    time::Duration,
+};
 
 use eyre::Result;
 use futures::{StreamExt, stream};
@@ -64,6 +68,7 @@ pub struct Identity<T> {
 pub enum ResponseEvent<T> {
     Connect,
     Heartbeat,
+    Error(String),
     Disconnect(DisconnectReason),
     Data(T),
 }
@@ -152,7 +157,7 @@ async fn get_frame<Body>(
 where
     Body: serde::de::DeserializeOwned,
 {
-    let Ok(frame) = byte_stream.read_u16().await else {
+    let Ok(frame) = byte_stream.read_u32().await else {
         return Ok(None);
     };
 
@@ -186,6 +191,8 @@ where
 
         let peer = connection.remote_id();
 
+        tracing::debug!(peer = peer.to_string(), "incoming connection");
+
         // 1. Open a single unidirection stream to push everything over
         //    (framed).
         // 2. First frame is assertion/identity.
@@ -198,6 +205,8 @@ where
             .await
             .map(Some)
             .or_else(|e| {
+                tracing::debug!(err = ?e, "failed to accept unidirectional stream");
+
                 if connection.close_reason().is_some() {
                     Ok(None)
                 } else {
@@ -220,7 +229,11 @@ where
                 .await
                 .map_err(AcceptError::from_boxed)?
             else {
-                continue;
+                tracing::warn!("missing handshake frame, closing connection");
+                return Err(AcceptError::from_err(IoError::new(
+                    ErrorKind::UnexpectedEof,
+                    "missing handshake frame",
+                )));
             };
 
             let msg_stream = stream::try_unfold(byte_stream, |byte_stream| {
@@ -251,11 +264,22 @@ pub(crate) trait SinkDriver {
         T: Serialize + Send + Sync + 'static;
 }
 
+pub fn emitter<T>(
+    buffer_size: usize,
+) -> (EmitterSender<T>, broadcast::Receiver<Arc<T>>) {
+    let (tx, rx) = broadcast::channel(buffer_size);
+    (EmitterSender(tx), rx)
+}
+
 pub struct EmitterSender<T>(broadcast::Sender<Arc<T>>);
 
 impl<T> EmitterSender<T> {
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.0.receiver_count() == 0
     }
 
     pub fn send(
@@ -268,7 +292,7 @@ impl<T> EmitterSender<T> {
 
 #[derive(Clone, bon::Builder)]
 pub struct EmitterOpts {
-    #[builder(default = 100)]
+    #[builder(default = 10_000)]
     pub buffer_size: usize,
     #[builder(default = Duration::from_secs(5))]
     pub connect_timeout: Duration,
@@ -280,20 +304,6 @@ impl Default for EmitterOpts {
     fn default() -> Self {
         Self::builder().build()
     }
-}
-
-pub(crate) async fn spawn_driver<T>(
-    buffer_size: usize,
-    driver: impl SinkDriver + Send + Sync + 'static,
-) -> Result<EmitterSender<T>>
-where
-    T: Serialize + Send + Sync + 'static,
-{
-    let (tx, rx) = broadcast::channel(buffer_size);
-
-    tokio::spawn(driver.run(rx).in_current_span());
-
-    Ok(EmitterSender(tx))
 }
 
 #[derive(bon::Builder)]
@@ -385,8 +395,8 @@ mod tests {
             .build()
             .into_driver();
 
-        let emitter: EmitterSender<u16> =
-            spawn_driver::<u16>(opts.buffer_size, driver).await?;
+        let (emitter, rx) = emitter(opts.buffer_size);
+        tokio::spawn(driver.run(rx));
 
         // Initial connection, this technically tests reconnect as the router
         // isn't running when the emitter starts up.

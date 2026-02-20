@@ -59,6 +59,10 @@ where
     where
         Body: serde::de::DeserializeOwned + std::fmt::Debug,
     {
+        tracing::info!(
+            peer = self.identity.observed.to_string(),
+            "session established"
+        );
         emit_response(&self.emit, self.response(ResponseEvent::Connect))
             .await?;
 
@@ -77,11 +81,12 @@ where
                         Some(Ok(req)) => req,
                         None => break DisconnectReason::Graceful,
                         Some(Err(err)) => {
-                            emit_response(&self.emit, self.response(ResponseEvent::Disconnect(
-                                DisconnectReason::TransportError,
-                            )))
-                            .await?;
-                            return Err(AcceptError::from_boxed(err));
+                            tracing::debug!(err = ?err, "stream error");
+
+                            emit_response(&self.emit, self.response(ResponseEvent::Error(err.to_string())))
+                                .await?;
+
+                            break DisconnectReason::TransportError;
                         }
                     };
 
