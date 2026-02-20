@@ -1,8 +1,6 @@
 # Scratch
 
 - Pick a name
-- Get a status page that shows:
-  - Make sure `display_name` is working correctly from the load generator.
 - Backend -> frontend error reporting
 - Get the github dump working.
   - The console gets wedged, probably from printing "fetch page".
@@ -16,11 +14,8 @@
 - Total rows should probably update whether you're updating the view or filter.
 - The UI is loading white -> dark -> blank -> finally rendering. Is there
   suspense or something getting in the way? Do I need a splash screen?
-- Support ANSI from log lines.
 - Get the fixture to have status and sessions in it. There might be a problem
   with atomWithRefresh being `debugPrivate`.
-- Work with nested objects
-  - I need to update the load generator to publish nested objects
 
 ## Bugs
 

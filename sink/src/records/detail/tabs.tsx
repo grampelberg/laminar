@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx'
 import type { Identity } from '@/types/db.ts'
 
 import type { RecordRow } from '../data.tsx'
+
 import { FieldTable, JSONTab, MetaTab } from './panels'
 
 const SWIPE_DURATION = 0.1
@@ -35,6 +36,28 @@ interface DirectionItemProps {
 }
 
 type DirectionItemElement = ReactElement<DirectionItemProps>
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const flattenFields = (
+  fields: Record<string, unknown>,
+  prefix = '',
+): Record<string, unknown> =>
+  Object.entries(fields).reduce<Record<string, unknown>>(
+    (acc, [key, value]) => {
+      const path = prefix.length > 0 ? `${prefix}.${key}` : key
+
+      if (isObjectRecord(value) && Object.keys(value).length >= 0) {
+        Object.assign(acc, flattenFields(value, path))
+        return acc
+      }
+
+      acc[path] = value
+      return acc
+    },
+    {},
+  )
 
 const flattenChildren = (children: ReactNode): ReactNode[] =>
   Children.toArray(children).flatMap(child => {
@@ -92,6 +115,7 @@ export const DetailTabs = ({
 }) => {
   const [tab, setTab] = useState('fields')
   const fields = useMemo(() => JSON.parse(row.fields_json || '{}'), [row])
+  const flattenedFields = useMemo(() => flattenFields(fields), [fields])
 
   const { element, direction } = useDirection(
     tab,
@@ -99,14 +123,18 @@ export const DetailTabs = ({
       <DirectionItem value="fields">
         <div className="space-y-4">
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Message</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Message
+            </h3>
             <div className="rounded-md border px-3 py-2">
               <Message text={row.message} variant="detail" />
             </div>
           </div>
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Fields</h3>
-            <FieldTable emptyState="No fields" fields={fields} />
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Fields
+            </h3>
+            <FieldTable emptyState="No fields" fields={flattenedFields} />
           </div>
         </div>
       </DirectionItem>
