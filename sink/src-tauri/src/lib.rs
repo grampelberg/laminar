@@ -4,26 +4,23 @@ mod error;
 mod record;
 mod stream;
 
-use std::{
-    convert::Infallible,
-    path::{Path, PathBuf},
-    sync::RwLock,
-};
+use std::{convert::Infallible, path::PathBuf, sync::RwLock};
 
+use blackbox::{
+    sampler::{CounterStats, Sampler, SamplerHandle, Series},
+    BlackboxRecorder, CounterKey, CounterValue, KeyExt,
+};
 use eyre::Result;
 use inspector::config::LayerConfig;
-use iroh::{Endpoint, EndpointId};
+use iroh::EndpointId;
+use metrics::Key;
 use serde_with::serde_as;
 use tauri::{AppHandle, Manager, WebviewWindow, Wry};
-use tracing_subscriber::{
-    filter::{EnvFilter, LevelFilter},
-    prelude::*,
-    reload::Layer,
-};
+use tracing_subscriber::{filter::EnvFilter, prelude::*};
 
 use crate::{
     config::{get_config, set_config},
-    stream::RecordStream,
+    stream::{RecordStream, MESSAGE_RECEIVED},
 };
 
 const DB_NAME: &'static str = "inspector.db";
@@ -54,6 +51,17 @@ fn get_status(state: tauri::State<'_, AppData>) -> tauri::Result<Status> {
     Ok(Status {
         db_size: meta.len(),
     })
+}
+
+#[tauri::command]
+fn get_series(
+    state: tauri::State<'_, AppData>,
+) -> Result<Series<CounterValue, CounterStats>, error::Error> {
+    let key = MESSAGE_RECEIVED.into_counter();
+    state
+        .metrics
+        .series(&key)
+        .ok_or_else(|| error::Error::Runtime("no metric samples".to_owned()))
 }
 
 #[cfg(debug_assertions)]
@@ -169,15 +177,29 @@ impl State {
 struct AppData {
     storage: Storage,
     config: RwLock<config::Config>,
+    metrics: SamplerHandle<CounterKey, CounterValue>,
     state: State,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let recorder = BlackboxRecorder::default();
+    metrics::set_global_recorder(recorder.clone()).expect("no other recorder");
+
+    let (sampler, runner) =
+        Sampler::new(recorder.clone(), vec![MESSAGE_RECEIVED.into_counter()])
+            .into_runner();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
+            let shutdown_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = tokio::signal::ctrl_c().await;
+                shutdown_handle.exit(0);
+            });
+
             let storage = Storage::from(app.handle())?;
 
             let config = config::Config::load(&storage.config)?;
@@ -207,9 +229,12 @@ pub fn run() {
 
             let db = db_config(&storage)?;
 
+            tauri::async_runtime::spawn(runner);
+
             app.manage(AppData {
                 storage,
                 config: RwLock::new(config),
+                metrics: sampler,
                 state: State::new(key.public(), db.clone()),
             });
 
@@ -226,8 +251,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_state, get_status, get_config, set_config
+            get_state, get_status, get_config, set_config, get_series
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("failed to build the app")
+        .run(move |handle, ev| {
+            #[cfg(debug_assertions)]
+            if let tauri::RunEvent::ExitRequested { .. } = ev {
+                eprintln!("\n====metrics=====\n{}", recorder.snapshot());
+            }
+        })
 }

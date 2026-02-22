@@ -11,7 +11,8 @@
     issue?
   - There should probably be a reduction in logging for receiving messages.
     maybe move to trace from debug?
-- Total rows should probably update whether you're updating the view or filter.
+- Status
+  - Get a graph in place for the ingest rate.
 
 ## Bugs
 

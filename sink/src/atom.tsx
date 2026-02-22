@@ -4,7 +4,7 @@ import {
   type SetStateAction,
   type WritableAtom,
 } from 'jotai'
-import { RESET } from 'jotai/utils'
+import { RESET, atomWithRefresh } from 'jotai/utils'
 
 import { getLogger } from '@/utils'
 
@@ -75,4 +75,27 @@ export const convertAtom = <Source, Converted>(
   }
 
   return converter
+}
+
+export const atomWithPeriodicRefresh = <Value,>(
+  read: () => Promise<Value> | Value,
+  intervalMs: number,
+) => {
+  const refreshable = atomWithRefresh(read)
+
+  refreshable.onMount = refresh => {
+    const intervalId = globalThis.setInterval(() => {
+      refresh()
+    }, intervalMs)
+
+    return () => {
+      globalThis.clearInterval(intervalId)
+    }
+  }
+
+  if (import.meta.env?.MODE !== 'production') {
+    refreshable.debugPrivate = true
+  }
+
+  return refreshable
 }

@@ -30,6 +30,8 @@ async fn insert_record_data(
     received_at: i64,
     body: &Record,
 ) -> sqlx::Result<()> {
+    metrics::counter!("db.insert", "table" => "records").increment(1);
+
     sqlx::query(
         r#"
         INSERT INTO records (
@@ -81,6 +83,8 @@ async fn upsert_connected_session(
     disconnected_at: Option<i64>,
     reason: Option<i64>,
 ) -> sqlx::Result<()> {
+    metrics::counter!("db.insert", "table" => "sessions").increment(1);
+
     sqlx::query(
         r#"
         INSERT INTO sessions (
@@ -112,6 +116,8 @@ async fn upsert_connected_session(
 
 impl WithSql for Identity<Claims> {
     async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
+        metrics::counter!("db.insert", "table" => "identity").increment(1);
+
         let writer_id = self.observed.to_string();
         let pid = self
             .assertion
@@ -152,6 +158,8 @@ impl WithSql for inspector::sink::Response<Claims, Record> {
     async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
         self.identity.insert(pool).await?;
         let writer_id = self.identity.observed.to_string();
+
+        metrics::counter!("db.select", "table" => "identity").increment(1);
         let identity_pk: i64 = sqlx::query(
             r#"
             SELECT pk

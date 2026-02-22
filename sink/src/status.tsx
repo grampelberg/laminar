@@ -5,6 +5,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { VisuallyHidden } from 'radix-ui'
 import { useLocation, useRoute } from 'wouter'
 
+import { MotionCount } from '@/components/motion-count'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -16,10 +17,12 @@ import {
 import { cn } from '@/lib/utils'
 import { routes } from '@/routes'
 import {
+  ingestAtom,
   type SessionRow,
   sessionsAtom,
   statusAtom,
   statusUpdateAtom,
+  totalRowsAtom,
 } from '@/status/data'
 
 const statusDot = cva('size-1.5 rounded-full', {
@@ -82,6 +85,27 @@ const Storage = () => {
   )
 }
 
+const Ingest = () => {
+  const {
+    stats: { rate },
+  } = useAtomValue(ingestAtom)
+  const totalRows = useAtomValue(totalRowsAtom)
+  const ratePerSec = rate ?? 0
+
+  return (
+    <div className="mt-3 border-t pt-2">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Total Rows</span>
+        <MotionCount value={totalRows} />
+      </div>
+      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+        <span>Ingest</span>
+        <span>{ratePerSec <= 0 ? 'idle' : `${ratePerSec.toFixed(1)}/sec`}</span>
+      </div>
+    </div>
+  )
+}
+
 export const Status = () => {
   useAtom(statusUpdateAtom)
   const [isOpen] = useRoute(routes.status)
@@ -124,6 +148,7 @@ export const Status = () => {
         </SheetHeader>
         <div className="px-4 pb-4">
           <Sessions rows={allClients} total={totalSessions} />
+          <Ingest />
           <Storage />
         </div>
       </SheetContent>

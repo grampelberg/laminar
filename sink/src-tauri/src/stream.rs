@@ -14,6 +14,8 @@ use crate::{
     ON_EVENT,
 };
 
+pub const MESSAGE_RECEIVED: &'static str = "message.received";
+
 #[derive(bon::Builder)]
 pub struct RecordStream {
     handle: AppHandle,
@@ -58,6 +60,7 @@ impl RecordStream {
                     msg.insert(&pool).await?;
                     debounce.trigger();
 
+                    metrics::counter!(MESSAGE_RECEIVED).increment(1);
                     tracing::debug!("received message");
                 }
                 _ = debounce.ready() => {
