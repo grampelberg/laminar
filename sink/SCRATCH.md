@@ -13,6 +13,8 @@
     maybe move to trace from debug?
 - Status
   - Get a graph in place for the ingest rate.
+- Add "annotations" that show when an event happened in the timeline, such as
+  "restarted process".
 
 ## Bugs
 

@@ -2,24 +2,25 @@ mod config;
 mod debounce;
 mod error;
 mod record;
+mod series;
 mod stream;
 
 use std::{convert::Infallible, path::PathBuf, sync::RwLock};
 
 use blackbox_metrics::{
-    sampler::{CounterStats, Sampler, SamplerHandle, Series},
+    sampler::{Sampler, SamplerHandle, SamplerOptions},
     BlackboxRecorder, CounterKey, CounterValue, KeyExt,
 };
 use eyre::Result;
 use inspector::config::LayerConfig;
 use iroh::EndpointId;
-use metrics::Key;
 use serde_with::serde_as;
 use tauri::{AppHandle, Manager, WebviewWindow, Wry};
 use tracing_subscriber::{filter::EnvFilter, prelude::*};
 
 use crate::{
     config::{get_config, set_config},
+    series::{get_series, MESSAGE_SERIES_CAPACITY, MESSAGE_SERIES_INTERVAL},
     stream::{RecordStream, MESSAGE_RECEIVED},
 };
 
@@ -51,17 +52,6 @@ fn get_status(state: tauri::State<'_, AppData>) -> tauri::Result<Status> {
     Ok(Status {
         db_size: meta.len(),
     })
-}
-
-#[tauri::command]
-fn get_series(
-    state: tauri::State<'_, AppData>,
-) -> Result<Series<CounterValue, CounterStats>, error::Error> {
-    let key = MESSAGE_RECEIVED.into_counter();
-    state
-        .metrics
-        .series(&key)
-        .ok_or_else(|| error::Error::Runtime("no metric samples".to_owned()))
 }
 
 #[cfg(debug_assertions)]
@@ -186,9 +176,16 @@ pub fn run() {
     let recorder = BlackboxRecorder::default();
     metrics::set_global_recorder(recorder.clone()).expect("no other recorder");
 
-    let (sampler, runner) =
-        Sampler::new(recorder.clone(), vec![MESSAGE_RECEIVED.into_counter()])
-            .into_runner();
+    let options = SamplerOptions::builder()
+        .capacity(MESSAGE_SERIES_CAPACITY)
+        .interval(MESSAGE_SERIES_INTERVAL)
+        .build();
+    let (sampler, runner) = Sampler::new_with_opts(
+        recorder.clone(),
+        vec![MESSAGE_RECEIVED.into_counter()],
+        options,
+    )
+    .into_runner();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::new().build())
