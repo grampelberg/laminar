@@ -6,7 +6,7 @@ mod stream;
 
 use std::{convert::Infallible, path::PathBuf, sync::RwLock};
 
-use blackbox::{
+use blackbox_metrics::{
     sampler::{CounterStats, Sampler, SamplerHandle, Series},
     BlackboxRecorder, CounterKey, CounterValue, KeyExt,
 };

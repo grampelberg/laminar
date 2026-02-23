@@ -498,18 +498,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "blackbox"
-version = "0.0.0-UNSTABLE"
+name = "blackbox-metrics"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba78f1ce57f9e530c8e16ceaf16a34098888df1a462136730b992e7b446879d2"
 dependencies = [
  "bon",
- "eyre",
- "hashbrown 0.16.1",
  "metrics",
  "metrics-util",
  "serde",
  "thiserror 2.0.18",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -2940,7 +2939,7 @@ dependencies = [
 name = "inspector-app"
 version = "0.1.0"
 dependencies = [
- "blackbox",
+ "blackbox-metrics",
  "bon",
  "chrono",
  "color-eyre",
