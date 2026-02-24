@@ -1,16 +1,68 @@
+import { AnimatePresence, motion } from 'framer-motion'
+import { useAtomValue, useAtom } from 'jotai'
+import { useEffect, useState, useCallback } from 'react'
+
 import { Controls } from '@/records/controls.tsx'
+import { selectedAtom, identityAtom } from '@/records/data.tsx'
 import { RecordDetail } from '@/records/detail.tsx'
 import { RecordsTable } from '@/records/table.tsx'
-import { getLogger } from '@/utils.ts'
 
-const logger = getLogger(import.meta.url)
+const DETAIL_DURATION = 0.2
 
-export const Records = () => (
-  <div>
-    <div className="flex h-[calc(100vh-8rem)] min-w-0 flex-col rounded-md border">
-      <Controls />
-      <RecordsTable />
+const fromRight = {
+  offscreen: { x: '100%', opacity: 0 },
+  visible: { x: 0, opacity: 1 },
+}
+
+export const Records = () => {
+  const [selected, setSelected] = useAtom(selectedAtom)
+  const identity = useAtomValue(identityAtom)
+
+  const open = selected && identity
+
+  const onDismiss = useCallback(() => {
+    setSelected(undefined)
+  }, [setSelected])
+
+  return (
+    <div>
+      <div className="flex h-[calc(100vh-8rem)] min-w-0 flex-col rounded-md border">
+        <Controls />
+        <div className="relative flex flex-1 overflow-hidden">
+          <motion.div
+            className="flex min-h-0 min-w-0 overflow-hidden"
+            animate={{
+              width: open ? 'var(--width-2-3)' : 'var(--width-3-3)',
+            }}
+            transition={{
+              duration: DETAIL_DURATION,
+            }}
+          >
+            <RecordsTable />
+          </motion.div>
+
+          <AnimatePresence>
+            {open && (
+              <motion.aside
+                className="absolute inset-y-0 right-0 flex min-h-0 w-1/3 min-w-0 border-l"
+                variants={fromRight}
+                initial="offscreen"
+                animate="visible"
+                exit="offscreen"
+                transition={{
+                  duration: DETAIL_DURATION,
+                }}
+              >
+                <RecordDetail
+                  row={selected}
+                  identity={identity}
+                  onDismiss={onDismiss}
+                />
+              </motion.aside>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
-    <RecordDetail />
-  </div>
-)
+  )
+}

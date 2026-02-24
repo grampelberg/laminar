@@ -6,6 +6,7 @@ import { SampleTable } from '@/playground/sample-table.tsx'
 import { RecordsTable } from '@/records/table.tsx'
 
 import { LinkedAtoms } from './atoms'
+import { Layout } from './layout'
 
 export const DesignPlayground = () => (
   <>
@@ -29,6 +30,9 @@ export const DesignPlayground = () => (
     </Route>
     <Route path="/atoms">
       <LinkedAtoms />
+    </Route>
+    <Route path="/layout">
+      <Layout />
     </Route>
   </>
 )

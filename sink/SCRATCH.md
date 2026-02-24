@@ -12,9 +12,15 @@
   - There should probably be a reduction in logging for receiving messages.
     maybe move to trace from debug?
 - Status
-  - Get a graph in place for the ingest rate.
+  - Animate the status graph from right to left.
+
 - Add "annotations" that show when an event happened in the timeline, such as
   "restarted process".
+
+- Diorama mode
+  - Sidebar won't close anymore
+  - Skeleton isn't going away
+  - Is there a test that'd catch this?
 
 ## Bugs
 

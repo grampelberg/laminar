@@ -6,12 +6,6 @@ import {
   oneLight,
 } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from '@/components/ui/table.tsx'
 import { isDark } from '@/lib/utils.ts'
 import type { Identity } from '@/types/db.ts'
 
@@ -48,31 +42,25 @@ export const FieldTable = ({
     [fields],
   )
 
+  if (rows.length === 0) {
+    return (
+      <div className="py-8 text-center text-sm text-muted-foreground">
+        {emptyState}
+      </div>
+    )
+  }
+
   return (
-    <Table>
-      <TableBody>
-        {rows.length === 0 && (
-          <TableRow>
-            <TableCell
-              className="py-8 text-center text-sm text-muted-foreground"
-              colSpan={2}
-            >
-              {emptyState}
-            </TableCell>
-          </TableRow>
-        )}
-        {rows.map(([key, value]) => (
-          <TableRow key={key}>
-            <TableCell className="w-56 max-w-56 min-w-56 font-mono text-xs">
-              {key}
-            </TableCell>
-            <TableCell className="max-w-lg wrap-break-word whitespace-normal">
-              {renderValue(value)}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <dl className="divide-y rounded-md border">
+      {rows.map(([key, value]) => (
+        <div className="space-y-1 px-3 py-2" key={key}>
+          <dt className="font-mono text-xs text-muted-foreground">{key}</dt>
+          <dd className="wrap-break-word whitespace-normal">
+            {renderValue(value)}
+          </dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
@@ -137,12 +125,12 @@ export const MetaTab = ({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted-foreground">Source</h3>
-        <FieldTable fields={sourceTable} />
-      </div>
-      <div className="space-y-2">
         <h3 className="text-sm font-medium text-muted-foreground">Row</h3>
         <FieldTable fields={rawTable} />
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foreground">Source</h3>
+        <FieldTable fields={sourceTable} />
       </div>
     </div>
   )
