@@ -17,7 +17,9 @@ export const Layout = () => {
         <motion.div
           className={cn('min-w-0 border border-red-400')}
           initial={false}
-          animate={{ width: isOpen ? 'var(--width-2-3)' : 'var(--width-3-3)' }}
+          animate={{
+            width: isOpen ? 'calc(100% / 3 * 2)' : '100%',
+          }}
           transition={{
             duration: 3,
           }}

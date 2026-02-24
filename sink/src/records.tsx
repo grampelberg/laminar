@@ -32,7 +32,7 @@ export const Records = () => {
           <motion.div
             className="flex min-h-0 min-w-0 overflow-hidden"
             animate={{
-              width: open ? 'var(--width-2-3)' : 'var(--width-3-3)',
+              width: open ? 'calc(100% / 3 * 2)' : '100%',
             }}
             transition={{
               duration: DETAIL_DURATION,

@@ -28,6 +28,7 @@ export default (function (a) {
     totalAtom: { value: 905 },
     'records.state': {
       value: {
+        loaded: true,
         hasMore: true,
         cursor: { id: 805, tsMs: 1771606660151 },
         rows: [
