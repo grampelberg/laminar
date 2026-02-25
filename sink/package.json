@@ -50,6 +50,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
+    "uplot": "^1.6.32",
     "wouter": "^3.9.0",
     "zod": "^4.3.6"
   },

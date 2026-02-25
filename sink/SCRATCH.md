@@ -17,11 +17,6 @@
 - Add "annotations" that show when an event happened in the timeline, such as
   "restarted process".
 
-- Diorama mode
-  - Sidebar won't close anymore
-  - Skeleton isn't going away
-  - Is there a test that'd catch this?
-
 ## Bugs
 
 - There's something weird about endpoints and reconnecting if you've failed in

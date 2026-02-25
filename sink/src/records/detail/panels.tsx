@@ -104,6 +104,7 @@ export const JSONTab = ({ fields }: { fields: Record<string, unknown> }) => (
 )
 
 const OMITTED_RAW_KEYS = new Set([
+  '_added',
   'fields_json',
   'id',
   'identity_pk',

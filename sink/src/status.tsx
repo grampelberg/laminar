@@ -1,11 +1,14 @@
+import 'uplot/dist/uPlot.min.css'
+
 import { cva } from 'class-variance-authority'
 import { formatDistanceToNow } from 'date-fns'
 import { millisecondsInSecond } from 'date-fns/constants'
 import { filesize } from 'filesize'
+import { useAnimationFrame } from 'framer-motion'
 import { useAtom, useAtomValue } from 'jotai'
 import { VisuallyHidden } from 'radix-ui'
-import { type ReactNode, useMemo } from 'react'
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
+import { useEffect, useRef } from 'react'
+import uPlot from 'uplot'
 import { useLocation, useRoute } from 'wouter'
 
 import { MotionCount } from '@/components/motion-count'
@@ -21,16 +24,17 @@ import { cn } from '@/lib/utils'
 import { routes } from '@/routes'
 import {
   ingestAtom,
+  type IngestPoint,
   type SessionRow,
   sessionsAtom,
   statusAtom,
   statusUpdateAtom,
   totalRowsAtom,
 } from '@/status/data'
+import { useCssVar } from '@/utils'
 
-import { getLogger } from './utils'
-
-const logger = getLogger(import.meta.url)
+const TOOLTIP_OFFSET = 8
+const INGEST_WINDOW_SECONDS = 120
 
 const statusDot = cva('size-1.5 rounded-full', {
   variants: {
@@ -43,35 +47,6 @@ const statusDot = cva('size-1.5 rounded-full', {
     state: 'none',
   },
 })
-
-const INGEST_CHART_HEIGHT = 28
-const INGEST_CHART_STROKE_WIDTH = 1.5
-
-interface IngestChartPoint {
-  atMs: number
-  rate: number
-}
-
-interface IngestTooltipProps {
-  active?: boolean
-  payload?: { value?: number }[]
-}
-
-const IngestChartTooltip = ({
-  active,
-  payload,
-}: IngestTooltipProps): ReactNode => {
-  const rate = payload?.[0]?.value
-  if (!active || typeof rate !== 'number') {
-    return undefined
-  }
-
-  return (
-    <div className="rounded-md border bg-background px-2 py-1 text-xxs text-muted-foreground shadow-sm">
-      {`${rate.toFixed(1)}/sec`}
-    </div>
-  )
-}
 
 const Sessions = ({ rows, total }: { rows: SessionRow[]; total: number }) => (
   <>
@@ -121,40 +96,162 @@ const Storage = () => {
   )
 }
 
+type UPlotData = [number[], number[]]
+
+const getRate = (prev: IngestPoint, next: IngestPoint) => {
+  const dtMs = next.at_ms - prev.at_ms
+  const delta = next.value - prev.value
+
+  return Math.max(0, (delta / dtMs) * millisecondsInSecond)
+}
+
+export const useIngestData = (points: IngestPoint[]): UPlotData => {
+  const dataRef = useRef<UPlotData>([[], []])
+  const lastRef = useRef(Date.now())
+
+  useEffect(() => {
+    if (points.length < 2) {
+      return
+    }
+
+    let idx = points.findLastIndex(point => point.at_ms > lastRef.current)
+    if (idx === -1) {
+      idx = 1
+    }
+
+    for (let i = idx; i < points.length; i++) {
+      dataRef.current[0].push(points[i].at_ms / millisecondsInSecond)
+
+      dataRef.current[1].push(getRate(points[i - 1], points[i]))
+    }
+
+    // This needs to be +1 from the time period so that it doesn't look like the
+    // line jerks when the new point is added. The actual view window is being
+    // handled by the `setScale` call and not by the number of points in the
+    // data.
+    const offset = dataRef.current[0].length - INGEST_WINDOW_SECONDS
+
+    if (offset > 0) {
+      dataRef.current[0].splice(0, offset)
+      dataRef.current[1].splice(0, offset)
+    }
+
+    lastRef.current = points.at(-1)?.at_ms ?? Date.now()
+  }, [points])
+
+  return dataRef.current
+}
+
+const getPos = (u: uPlot) => {
+  const {
+    cursor: { idx },
+  } = u
+
+  if (idx == null || idx < 0) {
+    return undefined
+  }
+
+  const xValue = u.data[0][idx]
+  const yValue = u.data[1][idx]
+  if (typeof xValue !== 'number' || typeof yValue !== 'number') {
+    return undefined
+  }
+
+  return {
+    x: u.valToPos(xValue, 'x'),
+    y: u.valToPos(yValue, 'y'),
+    value: yValue,
+  }
+}
+
 const Ingest = () => {
   const { points, stats } = useAtomValue(ingestAtom)
+  const data = useIngestData(points)
+
   const totalRows = useAtomValue(totalRowsAtom)
   const ratePerSec = stats.rate ?? 0
 
-  const { data: chartData } = useMemo<IngestChartPoint[]>(() => {
-    if (points.length < 2) {
-      return []
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const tooltipRef = useRef<HTMLDivElement | null>(null)
+  const plotRef = useRef<uPlot | undefined>(undefined)
+  const stroke = useCssVar('--color-emerald-500')
+
+  const setTooltip = (u: uPlot) => {
+    const tooltip = tooltipRef.current
+    if (!tooltip) {
+      return
     }
 
-    return points.reduce(
-      (acc, point) => {
-        if (!acc.prev) {
-          return {
-            prev: point,
-            data: [0],
-          }
-        }
+    const pos = getPos(u)
+    if (!pos) {
+      tooltip.style.opacity = '0'
+      return
+    }
 
-        const dtMs = point.at_ms - acc.prev.at_ms
-        const delta = point.value - acc.prev.value
+    const { x, y, value } = pos
 
-        acc.data.push({
-          atMs: point.at_ms,
-          rate: Math.max(0, (delta / dtMs) * millisecondsInSecond),
-        })
+    tooltip.style.opacity = '1'
+    tooltip.style.transform = `translate(${x + TOOLTIP_OFFSET}px, ${y - TOOLTIP_OFFSET}px)`
+    tooltip.textContent = `${value.toFixed(1)}/sec`
+  }
 
-        acc.prev = point
+  useEffect(() => {
+    if (!canvasRef.current) {
+      return
+    }
 
-        return acc
+    const { width, height } = canvasRef.current.getBoundingClientRect()
+
+    plotRef.current = new uPlot(
+      {
+        width,
+        height,
+        legend: { show: false },
+        cursor: { y: false },
+        series: [
+          {},
+          {
+            stroke,
+            width: 2,
+            paths: uPlot.paths.linear(),
+            spanGaps: true,
+            pxAlign: 0,
+            points: { show: false },
+          },
+        ],
+        axes: [{ show: false }, { show: false }],
+        scales: {
+          x: { time: false },
+        },
+        hooks: {
+          ready: [setTooltip],
+          setCursor: [setTooltip],
+          setData: [setTooltip],
+        },
       },
-      { prev: undefined, data: [] },
+      data,
+      canvasRef.current,
     )
-  }, [points])
+
+    return () => {
+      plotRef.current?.destroy()
+      plotRef.current = undefined
+    }
+  }, [stroke])
+
+  useAnimationFrame(() => {
+    if (!plotRef.current) {
+      return
+    }
+
+    plotRef.current.setData(data, false)
+
+    const nowSeconds = Date.now() / millisecondsInSecond
+    plotRef.current.setScale('x', {
+      min: nowSeconds - INGEST_WINDOW_SECONDS,
+      max: nowSeconds,
+    })
+  })
 
   return (
     <div className="mt-3 border-t pt-2">
@@ -170,27 +267,12 @@ const Ingest = () => {
           </span>
         </span>
       </div>
-      <div className="mt-1 h-7 text-emerald-500/80 dark:text-emerald-400/80">
-        <ResponsiveContainer height={INGEST_CHART_HEIGHT} width="100%">
-          <LineChart data={chartData}>
-            <XAxis
-              dataKey="atMs"
-              domain={['dataMin', 'dataMax']}
-              hide
-              type="number"
-            />
-            <Tooltip content={<IngestChartTooltip />} cursor={false} />
-            <Line
-              activeDot={false}
-              dataKey="rate"
-              dot={false}
-              isAnimationActive={false}
-              stroke="currentColor"
-              strokeWidth={INGEST_CHART_STROKE_WIDTH}
-              type="linear"
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="relative mt-2 h-7 w-full">
+        <div ref={canvasRef} className="h-7 w-full" />
+        <div
+          className="pointer-events-none absolute top-0 left-0 z-10 rounded border bg-background px-1.5 py-0.5 text-xxs text-muted-foreground opacity-0 shadow-sm transition-opacity"
+          ref={tooltipRef}
+        />
       </div>
     </div>
   )
