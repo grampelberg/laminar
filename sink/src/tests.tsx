@@ -8,9 +8,11 @@ import { getLogger } from '@/utils'
 const logger = getLogger('test-helpers')
 
 export const INVOKE_SELECT = 'plugin:sql|select'
+const INVOKE_LOAD = 'plugin:sql|load'
 const INVOKE_CONFIG = 'get_config'
 const INVOKE_STATE = 'get_state'
 const INVOKE_STATUS = 'get_status'
+const INVOKE_SERIES = 'get_series'
 
 const TO_MS = 1000
 const UNHANDLED_SETTLE_DELAY_MS = 10
@@ -38,8 +40,10 @@ const resolve = <TValue, Args extends unknown[] = []>(
 interface InvokeStub {
   config?: unknown
   state?: unknown
+  load?: unknown
   select?: unknown
   status?: unknown
+  series?: unknown
 }
 
 export const dispatchInvoke =
@@ -48,6 +52,9 @@ export const dispatchInvoke =
     logger('called invoke', cmd, args)
 
     switch (cmd) {
+      case INVOKE_LOAD: {
+        return stub.load ? resolve(stub.load, cmd, args) : []
+      }
       case INVOKE_SELECT: {
         return stub.select ? resolve(stub.select, cmd, args) : []
       }
@@ -59,6 +66,14 @@ export const dispatchInvoke =
       }
       case INVOKE_STATUS: {
         return stub.status ? resolve(stub.status, cmd, args) : { dbSize: 0 }
+      }
+      case INVOKE_SERIES: {
+        return stub.series
+          ? resolve(stub.series, cmd, args)
+          : { points: [], stats: { rate: undefined, total: 0 } }
+      }
+      default: {
+        throw new Error(`unhandled invoke: ${cmd}. Add to dispatchInvoke`)
       }
     }
   }

@@ -247,6 +247,8 @@ pub fn run() {
 
             Ok(())
         })
+        // When adding commands, make sure to also add the stubs to
+        // dispatchInvoke. Otherwise, the design playground can fail.
         .invoke_handler(tauri::generate_handler![
             get_state, get_status, get_config, set_config, get_series
         ])

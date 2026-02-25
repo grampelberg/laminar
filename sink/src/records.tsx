@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useAtomValue, useAtom } from 'jotai'
-import { useEffect, useState, useCallback } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { useCallback } from 'react'
 
 import { Controls } from '@/records/controls.tsx'
 import { selectedAtom, identityAtom } from '@/records/data.tsx'

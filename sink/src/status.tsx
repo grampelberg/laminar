@@ -31,10 +31,14 @@ import {
   statusUpdateAtom,
   totalRowsAtom,
 } from '@/status/data'
-import { useCssVar } from '@/utils'
+import { useCssVar, getLogger } from '@/utils'
+
+const logger = getLogger(import.meta.url)
 
 const TOOLTIP_OFFSET = 8
 const INGEST_WINDOW_SECONDS = 120
+const PADDED_WINDOW = INGEST_WINDOW_SECONDS + 2
+const UPlot = uPlot
 
 const statusDot = cva('size-1.5 rounded-full', {
   variants: {
@@ -105,6 +109,19 @@ const getRate = (prev: IngestPoint, next: IngestPoint) => {
   return Math.max(0, (delta / dtMs) * millisecondsInSecond)
 }
 
+const intoData = (data: UPlotData, points: IngestPoint[], start: number) => {
+  for (let i = start === -1 ? 1 : start; i < points.length; i++) {
+    data[0].push(points[i].at_ms / millisecondsInSecond)
+
+    data[1].push(getRate(points[i - 1], points[i]))
+  }
+
+  while (data[0].length < PADDED_WINDOW) {
+    data[0].unshift(data[0][0] - 1)
+    data[1].unshift(data[1][0])
+  }
+}
+
 export const useIngestData = (points: IngestPoint[]): UPlotData => {
   const dataRef = useRef<UPlotData>([[], []])
   const lastRef = useRef(Date.now())
@@ -119,17 +136,16 @@ export const useIngestData = (points: IngestPoint[]): UPlotData => {
       idx = 1
     }
 
-    for (let i = idx; i < points.length; i++) {
-      dataRef.current[0].push(points[i].at_ms / millisecondsInSecond)
+    intoData(dataRef.current, points, idx)
 
-      dataRef.current[1].push(getRate(points[i - 1], points[i]))
-    }
-
-    // This needs to be +1 from the time period so that it doesn't look like the
-    // line jerks when the new point is added. The actual view window is being
-    // handled by the `setScale` call and not by the number of points in the
-    // data.
-    const offset = dataRef.current[0].length - INGEST_WINDOW_SECONDS
+    // This needs to be a little longer than the WINDOW. On the left, this
+    // ensures that there's always data drawn as the line moves out of the
+    // viewport. On the right, this ensures that there's always data drawn as
+    // the lien moves *into* the viewport. In both cases, having some extra
+    // points means that the line already exists to animate right to left
+    // instead of drawing (or removing) points in the viewport causing the plot
+    // to look jerky.
+    const offset = dataRef.current[0].length - PADDED_WINDOW
 
     if (offset > 0) {
       dataRef.current[0].splice(0, offset)
@@ -142,24 +158,24 @@ export const useIngestData = (points: IngestPoint[]): UPlotData => {
   return dataRef.current
 }
 
-const getPos = (u: uPlot) => {
+const getPos = (plot: uPlot) => {
   const {
     cursor: { idx },
-  } = u
+  } = plot
 
-  if (idx == null || idx < 0) {
+  if (typeof idx !== 'number' || idx < 0) {
     return undefined
   }
 
-  const xValue = u.data[0][idx]
-  const yValue = u.data[1][idx]
+  const xValue = plot.data[0][idx]
+  const yValue = plot.data[1][idx]
   if (typeof xValue !== 'number' || typeof yValue !== 'number') {
     return undefined
   }
 
   return {
-    x: u.valToPos(xValue, 'x'),
-    y: u.valToPos(yValue, 'y'),
+    x: plot.valToPos(xValue, 'x'),
+    y: plot.valToPos(yValue, 'y'),
     value: yValue,
   }
 }
@@ -176,13 +192,13 @@ const Ingest = () => {
   const plotRef = useRef<uPlot | undefined>(undefined)
   const stroke = useCssVar('--color-emerald-500')
 
-  const setTooltip = (u: uPlot) => {
+  const setTooltip = (plot: uPlot) => {
     const tooltip = tooltipRef.current
     if (!tooltip) {
       return
     }
 
-    const pos = getPos(u)
+    const pos = getPos(plot)
     if (!pos) {
       tooltip.style.opacity = '0'
       return
@@ -200,9 +216,10 @@ const Ingest = () => {
       return
     }
 
+    const linearPaths = uPlot.paths?.linear?.()
     const { width, height } = canvasRef.current.getBoundingClientRect()
 
-    plotRef.current = new uPlot(
+    plotRef.current = new UPlot(
       {
         width,
         height,
@@ -213,7 +230,7 @@ const Ingest = () => {
           {
             stroke,
             width: 2,
-            paths: uPlot.paths.linear(),
+            ...(linearPaths ? { paths: linearPaths } : {}),
             spanGaps: true,
             pxAlign: 0,
             points: { show: false },
@@ -246,10 +263,20 @@ const Ingest = () => {
 
     plotRef.current.setData(data, false)
 
-    const nowSeconds = Date.now() / millisecondsInSecond
+    // This adjusts so that the plot doesn't move if there's no more data. While
+    // this is unlikely in normal operation, it'll happen if there's a fixture
+    // applied.
+    const now = Date.now() / millisecondsInSecond
+    const last = data[0].at(-1) || 0
+    const idle = 2
+    // Go back a step so that the point can be drawn immediately. This gets rid
+    // of what looks like a little jerkiness when there's a gap between moving
+    // left and having a new point inserted for the most recent data.
+    const max = now - last <= idle ? now - 2 : last
+
     plotRef.current.setScale('x', {
-      min: nowSeconds - INGEST_WINDOW_SECONDS,
-      max: nowSeconds,
+      min: max - INGEST_WINDOW_SECONDS,
+      max,
     })
   })
 

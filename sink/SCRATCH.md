@@ -11,11 +11,10 @@
     issue?
   - There should probably be a reduction in logging for receiving messages.
     maybe move to trace from debug?
-- Status
-  - Animate the status graph from right to left.
 
 - Add "annotations" that show when an event happened in the timeline, such as
   "restarted process".
+- Make retention actually do something.
 
 ## Bugs
 
@@ -35,7 +34,6 @@
   different endpoints. Test this, but if that's the case, rely on
   process/display_name more than the endpoint id.
 
-- stdin forwarder
 - Add version to the protocol so that I can handle breaking changes on the
   server side with clients sending different versions.
 
@@ -49,14 +47,12 @@
   but not especially actionable or useful. A better way to approach this is "how
   can I show what's going on at a high level?"
 
+  A good first step here would be to take the stats and put them into metrics.
+  Blackbox can then expose these as series that are sampled via the get_series()
+  tauri command to the UI.
+
 ## Frontend
 
-- For JSON messages, it is tough to read what's going on (as expected). Maybe it
-  would be nice to have the message be json syntax highlighted and multi-line if
-  the message is in json?
-  - At the bare minimum, maybe do the formatting as part of the "message" view
-    for detail.
-- Need to handle multi-level json objects in the detail view.
 - I'm not sure source or level are especially helpful. The source is definitely
   taking up a ton of space. They're both nice for filtering, but maybe they
   should go on the right instead of the left?
@@ -65,8 +61,6 @@
     be out of date quickly. Maybe there should be a "detail" view for a line?
 - Is there a way to make this all work via the keyboard exclusively? Maybe the
   command palette can expand to have extra functionality?
-- If you're filtering, there's no visual way to know whether you're actually
-  receiving new logs or not. Maybe introduce a total vs filtered count?
 
 ### Testing
 
@@ -78,10 +72,14 @@
 - The table is particularly performance sensitive. Resizing, initial render and
   scrolling can really consume resources. How would I go about having tests to
   at least tell me if there's some regressions here.
+- "Browser" mode is fragile, any changes to the data model can result in
+  breakage there. There's a smoke test for this, but it doesn't exercise all the
+  UI, so it misses things. In particular, adding new tauri commands is sensitive
+  as they need to be stubbed out and/or the fixtures need to be updated. Is
+  there something better than what exists now?
 
-### Records
+### Detail View
 
-- Hook routes up to show/hide the sidebar.
 - Show renders in the table by field type (timestamp is an actual timestamp,
   level and kind as well).
 
@@ -103,14 +101,7 @@
   Note: it has up to ~110ms or so now. The cell renders are doing more work. I'm
   not sure you can tell that there's a delay though given all the animations.
 
-- Does it make sense to add a way to know where in the total rows you are
-  scrolled to? The scrollbar position does an ~okay job of suggesting how far
-  you've gotten in the list.
-
 ### Fixtures
-
-- I get a toast when I set the debug namespace and have a fixture applied. Maybe
-  the setEffect is too broad?
 
 ### Error Handling
 
@@ -119,12 +110,6 @@
 
 ### Status
 
-- Need to have "connection status" UI that shows whether a backend is sending
-  events. Maybe how many events it is sending?
-- Allow garbage collection for storage.
-
 ### Settings
-
-- Configure a remote sink to send the local client's logs to.
 
 ### Filters
