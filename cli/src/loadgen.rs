@@ -7,7 +7,7 @@ use futures::{
     pin_mut,
     stream::{self, StreamExt},
 };
-use laminar_stream::{Config, InspectorLayer};
+use laminar_stream::{Config, StreamLayer};
 use petname::petname;
 use tokio::time;
 use tracing::level_filters::LevelFilter;
@@ -15,7 +15,7 @@ use tracing_subscriber::{EnvFilter, prelude::*};
 
 #[derive(Parser, Debug)]
 #[command(name = "loadgen", about = "Load generator CLI")]
-pub(crate) struct Args {
+pub struct Args {
     #[arg(from_global)]
     config: Config,
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
@@ -33,14 +33,14 @@ pub(crate) struct Args {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
-pub(crate) enum OutputFormat {
+pub enum OutputFormat {
     Full,
     Compact,
     Pretty,
     Json,
 }
 
-pub(crate) async fn run(args: Args) -> Result<()> {
+pub async fn run(args: Args) -> Result<()> {
     if args.rate == 0 {
         return Err(eyre!("--rate must be > 0"));
     }
@@ -57,9 +57,8 @@ pub(crate) async fn run(args: Args) -> Result<()> {
     }
 
     let (layer, writer) = if args.emit {
-        let (layer, writer) = InspectorLayer::builder()
-            .config(args.config.layer())
-            .build()?;
+        let (layer, writer) =
+            StreamLayer::builder().config(args.config.layer()).build()?;
         (Some(layer), Some(writer))
     } else {
         (None, None)

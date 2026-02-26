@@ -20,14 +20,14 @@ use tokio::io::{
 };
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum Error {
+pub enum Error {
     #[error("no source: {0}")]
     NoSource(String),
 }
 
 #[derive(clap::Parser, Debug)]
 #[command(name = "tap", about = "Forward stdin to deck")]
-pub(crate) struct Args {
+pub struct Args {
     #[arg(from_global)]
     config: Config,
     #[arg(long, value_enum, default_value_t = Format::Auto)]
@@ -37,13 +37,13 @@ pub(crate) struct Args {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
-pub(crate) enum Format {
+pub enum Format {
     Text,
     Json,
     Auto,
 }
 
-pub(crate) async fn run(args: Args) -> Result<()> {
+pub async fn run(args: Args) -> Result<()> {
     crate::init_logging();
 
     let process: Option<SourceProcess> = match args.source {

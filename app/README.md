@@ -1,4 +1,4 @@
-# Inspector
+# Laminar Sink
 
 ## Development
 
@@ -28,7 +28,7 @@ While it is possible to use fixtures to get data in the UI, you can also
 generate some yourself:
 
 ```bash
-cargo run --bin cli -- loadgen
+cd ../cli && cargo run -- loadgen
 ```
 
 Configure the address of your UI via the config file or env vars.
@@ -129,33 +129,6 @@ backend.
 
 ## Narrative
 
-The target audience of this is primarily developers who want to know what's
-happening with their code, while they're writing it. This means that it can
-consume stdin, via pipes (the `tap` command) and forward that stream to a viewer
-running on their system. You can, alternatively, integrate with your language's
-logging provider such as Rust's `tracing` and have the messages emitted directly
-from the process. In the sink, you have a dedicated viewer with filtering,
-history and extra metadata. Instead of having to scroll through your terminal as
-everything goes off the screen, you can have a persistent view that lets you
-hunt for specific events and inspect them in detail.
-
-To make forwarding reliable, we implemented p2p connectivity. Your address is
-derived from a keypair and follows you everywhere. Whether you're at home behind
-a NAT or at the office, you'll always be able to receive the messages without
-needing to change the address or configuration. The result is that for most
-things, you can just set the `tap` command up and let it run. It'll forward logs
-when the sink is active and quietly drop them when it isn't.
-
-One way to use this would be pair debugging sessions. Instead of having to ask
-someoen what's on their screen or to copy/paste logs through chat to you, you
-can have them `tap` the logs and send them to your sink in real time. That way,
-you see what they see and can ask questions about what's going on immediately.
-
-In the end, you end up with your own "shadow" observability stack. There's no
-need to rely on third-party services, whether that's a CI runner or a cloud
-service provider. When you need to know what's going on, you can `tap` it and
-get exactly what you need, without any extra configuration or waiting.
-
 - I can't see the logs
   - My font is too small
   - It is going by too fast
@@ -193,21 +166,3 @@ get exactly what you need, without any extra configuration or waiting.
 - Integrated with tracing, no need for an external process.
 - One UI for multiple streams. You can forward everything to your local app and
   then filter it.
-
-### Naming
-
-- I don't want anything with the word "span" in it.
-- I'm not a fan of "tracing".
-- `tail` is a classic that is similar to what this is doing.
-- I don't mind words that sound fine but mean nothing.
-- Having something that lends itself well to a logo or mascot would be nice.
-- Maybe something with "stream" in it? There's something interesting about
-  "tributaries" being joined together into something bigger? Could also go with
-  fishing, as in looking for something valuable from streams.
-- Is there something humorous that can be a play on "sink"? As in "the kitchen
-  sink"?
-- I like the name "substrate" but I'm not sure it matches with the project. It'd
-  be a logo with a tree and showing its roots down in the dirt.
-- There are two major pieces that most users will use, the stdin tap and the log
-  viewer (sink).
-- Laminar, as in laminar flow is perhaps my favorite so far.

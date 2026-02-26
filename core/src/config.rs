@@ -40,9 +40,9 @@ pub struct Config {
 // TODO:
 // - Document how to set the sub-keys, eg FOO={key={path="asdf"}}
 impl Config {
-    const PATH_ENV: &'static str = "INSPECTOR_CONFIG";
-    const PATH: &'static str = "~/.config/inspector/config.toml";
-    const ENV_PREFIX: &'static str = "INSPECTOR_";
+    const PATH_ENV: &'static str = "LAMINAR_CONFIG";
+    const PATH: &'static str = "~/.config/laminar/config.toml";
+    const ENV_PREFIX: &'static str = "LAMINAR_";
 
     fn figment_with_path(path: Option<&str>) -> Figment {
         let path = path.map_or_else(

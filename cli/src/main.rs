@@ -1,3 +1,5 @@
+#![allow(unreachable_pub)]
+
 mod loadgen;
 mod sink;
 mod tap;

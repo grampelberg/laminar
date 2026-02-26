@@ -69,7 +69,7 @@ fn setup_logging(config: LayerConfig, enable: bool) -> Result<()> {
 
     let env_filter = EnvFilter::builder().from_env_lossy();
     let fmt = tracing_subscriber::fmt::layer().pretty();
-    let (layer, writer) = laminar_stream::InspectorLayer::builder()
+    let (layer, writer) = laminar_stream::StreamLayer::builder()
         .config(config)
         .build()?;
 

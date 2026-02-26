@@ -1,3 +1,10 @@
+run:
+    bun tauri dev
+
+check:
+    bun lint
+    bun tsc --noEmit
+
 db-tooling: tmp
     cargo sqlx database create
     cargo sqlx migrate run --source src-tauri/migrations

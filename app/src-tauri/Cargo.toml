@@ -18,22 +18,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-laminar-stream = { path = "../../core" }
 blackbox-metrics = "0.0.1"
-tauri = { version = "2.10.2", features = [] }
-tauri-plugin-opener = "2"
+bon = { version = "3.9.0", features = ["implied-bounds"] }
+chrono = { version = "0.4.44", features = ["serde"] }
+color-eyre = { version = "0.6.5", features = ["track-caller"] }
+eyre = "0.6.12"
+figment = { version = "0.10.19", features = ["toml"] }
+futures = "0.3.32"
+iroh = "0.96.1"
+laminar-stream = { path = "../../core" }
+metrics = "0.24.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.49.0", features = ["time"] }
-tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.22", features = [
-  "env-filter",
-  "registry",
-] }
-color-eyre = { version = "0.6.5", features = ["track-caller"] }
-futures = "0.3.31"
-eyre = "0.6.12"
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+serde_with = "3.17.0"
 sqlx = { version = "0.8.6", features = [
   "chrono",
   "derive",
@@ -44,14 +41,17 @@ sqlx = { version = "0.8.6", features = [
   "sqlite",
   "sqlite-preupdate-hook",
 ] }
-bon = { version = "3.8.2", features = ["implied-bounds"] }
-iroh = "0.96.1"
-figment = { version = "0.10.19", features = ["toml"] }
-toml = "0.8.19"
-serde_with = "3.14.1"
+tauri = { version = "2.10.2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 thiserror = "2.0.18"
-chrono = { version = "0.4.43", features = ["serde"] }
-metrics = "0.24.3"
+tokio = { version = "1.49.0", features = ["time"] }
+toml = "1.0.3"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = [
+  "env-filter",
+  "registry",
+] }
 
 [features]
 clean = []

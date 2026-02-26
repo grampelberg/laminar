@@ -29,7 +29,7 @@ type Resolvable<TValue, Args extends unknown[] = []> =
   | TValue
   | ((...args: Args) => TValue)
 
-const resolve = <TValue, Args extends unknown[] = []>(
+const resolveValue = <TValue, Args extends unknown[] = []>(
   value: Resolvable<TValue, Args>,
   ...args: Args
 ): TValue =>
@@ -53,23 +53,25 @@ export const dispatchInvoke =
 
     switch (cmd) {
       case INVOKE_LOAD: {
-        return stub.load ? resolve(stub.load, cmd, args) : []
+        return stub.load ? resolveValue(stub.load, cmd, args) : []
       }
       case INVOKE_SELECT: {
-        return stub.select ? resolve(stub.select, cmd, args) : []
+        return stub.select ? resolveValue(stub.select, cmd, args) : []
       }
       case INVOKE_CONFIG: {
-        return stub.config ? resolve(stub.config, cmd, args) : DEFAULT_CONFIG
+        return stub.config
+          ? resolveValue(stub.config, cmd, args)
+          : DEFAULT_CONFIG
       }
       case INVOKE_STATE: {
-        return stub.state ? resolve(stub.state, cmd, args) : DEFAULT_STATE
+        return stub.state ? resolveValue(stub.state, cmd, args) : DEFAULT_STATE
       }
       case INVOKE_STATUS: {
-        return stub.status ? resolve(stub.status, cmd, args) : { dbSize: 0 }
+        return stub.status ? resolveValue(stub.status, cmd, args) : { dbSize: 0 }
       }
       case INVOKE_SERIES: {
         return stub.series
-          ? resolve(stub.series, cmd, args)
+          ? resolveValue(stub.series, cmd, args)
           : { points: [], stats: { rate: undefined, total: 0 } }
       }
       default: {

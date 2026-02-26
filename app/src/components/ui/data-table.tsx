@@ -218,7 +218,7 @@ export interface DataTableProps<Data extends RowData> {
   fullWidth?: boolean
   loading?: boolean
   loadingRowCount?: number
-  useRowProps?: RowPropsHook<Data>
+  getRowProps?: RowPropsHook<Data>
   virtualOpts?: Partial<ReactVirtualizerOptions<HTMLDivElement, Element>>
   onScroll: (viewport: Viewport) => void
 }
@@ -229,7 +229,7 @@ const DataTableInner = <Data extends RowData>(
     fullWidth = false,
     loading = false,
     loadingRowCount = 12,
-    useRowProps,
+    getRowProps,
     virtualOpts,
     onScroll,
   }: DataTableProps<Data>,
@@ -314,7 +314,7 @@ const DataTableInner = <Data extends RowData>(
             {!loading && rows.length === 0 && <Empty colSpan={columnCount} />}
             {rows.length > 0 && (
               <RowPropsContext.Provider
-                value={useRowProps as RowPropsHook<unknown> | undefined}
+                value={getRowProps as RowPropsHook<unknown> | undefined}
               >
                 <MemoBody
                   {...{

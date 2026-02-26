@@ -97,7 +97,7 @@ export const RecordsTable = () => {
       fullWidth
       loading={!loaded}
       loadingRowCount={12}
-      useRowProps={rowProps}
+      getRowProps={rowProps}
       virtualOpts={{
         overscan: OVERSCAN,
       }}
