@@ -1,0 +1,100 @@
+{
+  "languages": {
+    "JavaScript": {
+      "format_on_save": "on",
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
+    },
+    "TypeScript": {
+      "format_on_save": "on",
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
+    },
+    "TSX": {
+      "format_on_save": "on",
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
+    },
+    "JSON": {
+      "format_on_save": "on",
+      "formatter": { "language_server": { "name": "oxfmt" } }
+    },
+    "JSONC": {
+      "format_on_save": "on",
+      "formatter": { "language_server": { "name": "oxfmt" } }
+    },
+    "CSS": {
+      "format_on_save": "on",
+      "formatter": { "language_server": { "name": "oxfmt" } }
+    },
+    "Markdown": {
+      "format_on_save": "on",
+      "formatter": [
+        {
+          "language_server": {
+            "name": "oxfmt"
+          }
+        }
+      ]
+    },
+    "MDX": {
+      "format_on_save": "on",
+      "formatter": [
+        {
+          "language_server": {
+            "name": "oxfmt"
+          }
+        }
+      ]
+    },
+    "Just": {
+      "formatter": {
+        "external": {
+          "command": "sh",
+          "arguments": ["-c", "cd $(mktemp -d) && cat > Justfile && just --dump"]
+        }
+      },
+      "format_on_save": "on"
+    },
+    "TOML": {
+      "formatter": {
+        "external": {
+          "command": "prettier-pnp",
+          "arguments": ["--quiet", "--pn=toml", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "YAML": {
+      "formatter": [
+        {
+          "language_server": {
+            "name": "oxfmt"
+          }
+        }
+      ]
+    }
+  },
+  "lsp": {
+    "vscode-css-language-server": {
+      "settings": {
+        "css": {
+          "lint": {
+            "unknownAtRules": "ignore"
+          }
+        }
+      }
+    },
+    "rust-analyzer": {
+      "initialization_options": {
+        "check": {
+          "command": "clippy"
+        },
+        "diagnostics": {
+          "experimental": {
+            "enable": true
+          }
+        },
+        "rustfmt": {
+          "extraArgs": ["+nightly"]
+        }
+      }
+    }
+  }
+}
