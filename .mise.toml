@@ -1,0 +1,7 @@
+[tools]
+bun = "latest"
+"cargo:sqlx-cli" = "latest"
+git-lfs = "latest"
+just = "latest"
+"npm:oxfmt" = "latest"
+"npm:prettier-pnp" = "latest"

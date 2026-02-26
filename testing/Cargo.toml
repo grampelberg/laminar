@@ -1,0 +1,23 @@
+[package]
+name = "laminar-testing"
+version.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+blackbox-metrics = "0.0.1"
+color-eyre = { version = "0.6.5", features = ["track-caller"] }
+eyre = "0.6.12"
+metrics = "0.24.3"
+self_cell = "1.2.2"
+tokio = "1.49.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+
+[lints]
+workspace = true
