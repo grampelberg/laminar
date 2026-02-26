@@ -50,7 +50,7 @@ impl From<ConnectError> for DriverError {
                     meta, ..
                 } => Self::Permanent {
                     source: "RemoteStateActorStoppedError".into(),
-                    location: meta.location().cloned(),
+                    location: meta.location().copied(),
                 },
                 _ => Self::Transient(source.into()),
             },
@@ -85,7 +85,7 @@ pub(crate) struct Driver {
 }
 
 impl Driver {
-    fn is_connected(&self) -> bool {
+    const fn is_connected(&self) -> bool {
         self.stream.is_some()
     }
 
@@ -123,7 +123,9 @@ impl Driver {
             return Err("message too long".into());
         }
         
-        stream.write_u32(bytes.len() as u32).await?;
+        let frame_len =
+            u32::try_from(bytes.len()).expect("bytes length pre-validated");
+        stream.write_u32(frame_len).await?;
         stream.write_all(bytes).await?;
 
         metrics::counter!("driver.emit").increment(1);
@@ -194,7 +196,7 @@ impl SinkDriver for Driver {
             }
 
             tokio::select! {
-                _ = self.disconnect() => {
+                () = self.disconnect() => {
                     metrics::gauge!("driver.connected").set(0.0);
                     metrics::counter!("driver.disconnected").increment(1);
                     tracing::warn!(peer = self.addr.id.to_string(), "disconnected");
@@ -206,7 +208,7 @@ impl SinkDriver for Driver {
                     match r {
                         Err(broadcast::error::RecvError::Closed) => break,
                         Err(broadcast::error::RecvError::Lagged(i)) => {
-                            metrics::counter!("driver.lagged").increment(i as u64);
+                            metrics::counter!("driver.lagged").increment(i);
                             tracing::warn!(count = i, "skipped");
                         }
                         Ok(data) => {

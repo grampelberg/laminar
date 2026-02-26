@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use futures::{StreamExt, stream, stream::BoxStream};
+use futures::{StreamExt, stream::BoxStream};
 use iroh::protocol::AcceptError;
 use tokio::{
     sync::mpsc,
@@ -29,7 +29,7 @@ where
 }
 
 #[derive(bon::Builder)]
-pub(crate) struct Session<'a, Assertion, Body> {
+pub(super) struct Session<'a, Assertion, Body> {
     #[builder(default = Uuid::new_v4())]
     id: Uuid,
     #[builder(default = HEARTBEAT_INTERVAL)]
@@ -39,7 +39,7 @@ pub(crate) struct Session<'a, Assertion, Body> {
     emit: mpsc::Sender<Response<Assertion, Body>>,
 }
 
-impl<'a, Assertion, Body> Session<'a, Assertion, Body>
+impl<Assertion, Body> Session<'_, Assertion, Body>
 where
     Assertion: Clone + Send + Sync + 'static,
     Body: Send + Sync + 'static,
@@ -110,7 +110,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::stream::BoxStream;
+    use futures::stream::{self, BoxStream};
     use iroh::{EndpointId, SecretKey};
     use rand::rng;
     use laminar_testing::Telemetry;

@@ -15,7 +15,7 @@ use tracing_subscriber::{EnvFilter, prelude::*};
 
 #[derive(Parser, Debug)]
 #[command(name = "loadgen", about = "Load generator CLI")]
-pub struct Args {
+pub(crate) struct Args {
     #[arg(from_global)]
     config: Config,
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
@@ -33,17 +33,19 @@ pub struct Args {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
-pub enum OutputFormat {
+pub(crate) enum OutputFormat {
     Full,
     Compact,
     Pretty,
     Json,
 }
 
-pub async fn run(args: Args) -> Result<()> {
+pub(crate) async fn run(args: Args) -> Result<()> {
     if args.rate == 0 {
         return Err(eyre!("--rate must be > 0"));
     }
+    let rate_u32 = u32::try_from(args.rate)
+        .map_err(|_| eyre!("--rate must be <= {}", u32::MAX))?;
     if args.max_words == 0 {
         return Err(eyre!("--max-words must be > 0"));
     }
@@ -90,7 +92,7 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     let base_delay =
-        Duration::from_secs_f64(args.threads as f64 / args.rate as f64);
+        Duration::from_secs_f64(f64::from(args.threads) / f64::from(rate_u32));
 
     let max_words = args.max_words;
     let jitter_percent = args.jitter_percent;
@@ -101,12 +103,16 @@ pub async fn run(args: Args) -> Result<()> {
             let delays = stream::repeat(base_delay)
                 .map(move |base| {
                     let base_nanos = base.as_nanos();
-                    let range = (base_nanos * jitter_percent as u128 / 100)
-                        .max(1) as i128;
+                    let range_u128 =
+                        (base_nanos * u128::from(jitter_percent) / 100).max(1);
+                    let range = i128::try_from(range_u128).unwrap_or(i128::MAX);
 
                     let jitter = rand::random_range(-range..=range);
+                    let base_i128 =
+                        i128::try_from(base_nanos).unwrap_or(i128::MAX);
+                    let delay_nanos_i128 = (base_i128 + jitter).max(1);
                     let delay_nanos =
-                        (base_nanos as i128 + jitter).max(1) as u64;
+                        u64::try_from(delay_nanos_i128).unwrap_or(u64::MAX);
                     Duration::from_nanos(delay_nanos)
                 })
                 .then(|delay| async move {
@@ -114,26 +120,26 @@ pub async fn run(args: Args) -> Result<()> {
                 });
             pin_mut!(delays);
 
-            while let Some(()) = delays.next().await {
+            while delays.next().await == Some(()) {
                 let word_count = rand::random_range(1..=max_words);
                 let message = petname(word_count, " ")
                     .unwrap_or_else(|| "petname exhausted words".to_string());
 
                 match rand::random_range(0..5) {
                     0 => {
-                        tracing::trace!(target: "loadgen::roach", worker, message)
+                        tracing::trace!(target: "loadgen::roach", worker, message);
                     }
                     1 => {
-                        tracing::debug!(target: "loadgen::ruggedly::admirable::yellowtail", worker, message)
+                        tracing::debug!(target: "loadgen::ruggedly::admirable::yellowtail", worker, message);
                     }
                     2 => {
-                        tracing::info!(target: "loadgen::informally::importantly", worker, message)
+                        tracing::info!(target: "loadgen::informally::importantly", worker, message);
                     }
                     3 => {
-                        tracing::warn!(target: "loadgen::immutably::amorally::southerly::unarguably::partially", worker, message)
+                        tracing::warn!(target: "loadgen::immutably::amorally::southerly::unarguably::partially", worker, message);
                     }
                     _ => {
-                        tracing::error!(target: "loadgen::unpleasantly::languidly::fortuitously::scandalously::reticently::mindlessly::insecurely", worker, message)
+                        tracing::error!(target: "loadgen::unpleasantly::languidly::fortuitously::scandalously::reticently::mindlessly::insecurely", worker, message);
                     }
                 }
             }

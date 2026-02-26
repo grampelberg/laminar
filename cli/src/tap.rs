@@ -20,14 +20,14 @@ use tokio::io::{
 };
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub(crate) enum Error {
     #[error("no source: {0}")]
     NoSource(String),
 }
 
 #[derive(clap::Parser, Debug)]
 #[command(name = "tap", about = "Forward stdin to deck")]
-pub struct Args {
+pub(crate) struct Args {
     #[arg(from_global)]
     config: Config,
     #[arg(long, value_enum, default_value_t = Format::Auto)]
@@ -37,13 +37,13 @@ pub struct Args {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
-pub enum Format {
+pub(crate) enum Format {
     Text,
     Json,
     Auto,
 }
 
-pub async fn run(args: Args) -> Result<()> {
+pub(crate) async fn run(args: Args) -> Result<()> {
     crate::init_logging();
 
     let process: Option<SourceProcess> = match args.source {
@@ -89,7 +89,7 @@ struct EchoLines<Reader, Writer> {
 
 impl EchoLines<BufReader<io::Stdin>, io::Stdout> {
     fn from_std() -> Self {
-        EchoLines {
+        Self {
             reader: BufReader::new(io::stdin()),
             writer: io::stdout(),
             buffer: Vec::new(),

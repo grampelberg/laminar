@@ -57,21 +57,11 @@ impl Default for Settings {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub layer: LayerConfig,
     pub reader: ReaderConfig,
     pub settings: Settings,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            layer: LayerConfig::default(),
-            reader: ReaderConfig::default(),
-            settings: Settings::default(),
-        }
-    }
 }
 
 impl Config {
@@ -85,7 +75,6 @@ impl Config {
                 key: KeySource::File {
                     path: Self::default_key_path(dir),
                 },
-                ..ReaderConfig::default()
             },
             settings: Settings::default(),
         }
@@ -105,7 +94,7 @@ impl Config {
     pub fn load(app_config_dir: &Path) -> Result<Self> {
         Ok(
             Figment::from(Serialized::defaults(Self::in_dir(app_config_dir)))
-                .merge(Toml::file(&Self::path(app_config_dir)))
+                .merge(Toml::file(Self::path(app_config_dir)))
                 .extract::<Self>()?,
         )
     }

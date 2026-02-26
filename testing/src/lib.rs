@@ -1,6 +1,5 @@
-use ::metrics::{self as metrics_rs, Key};
+use ::metrics as metrics_rs;
 use blackbox_metrics::{BlackboxRecorder, KeyExt, MetricsRead};
-use eyre::Result;
 use self_cell::self_cell;
 use tokio::runtime::{Handle, RuntimeFlavor};
 use tracing::subscriber::DefaultGuard;
@@ -18,19 +17,31 @@ self_cell! {
 
 pub struct Telemetry {
     metrics: MetricsCell,
-    _tracing_guard: DefaultGuard,
+    tracing_guard: DefaultGuard,
+}
+
+impl std::fmt::Debug for Telemetry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Telemetry").finish_non_exhaustive()
+    }
+}
+
+impl Default for Telemetry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Telemetry {
+    #[must_use]
     pub fn new() -> Self {
         color_eyre::install().ok();
 
-        if let Some(handle) = Handle::try_current().ok() {
-            if handle.runtime_flavor() != RuntimeFlavor::CurrentThread {
-                panic!(
-                    "Telemetry can only be used with a current-thread runtime"
-                )
-            }
+        if let Ok(handle) = Handle::try_current() {
+            assert!(
+                handle.runtime_flavor() == RuntimeFlavor::CurrentThread,
+                "Telemetry can only be used with a current-thread runtime"
+            );
         }
 
         let metrics =
@@ -40,25 +51,29 @@ impl Telemetry {
 
         let env_filter = EnvFilter::builder().from_env_lossy();
         let fmt = tracing_subscriber::fmt::layer().pretty();
-        let _tracing_guard = tracing_subscriber::registry()
+        let tracing_guard = tracing_subscriber::registry()
             .with(env_filter)
             .with(fmt)
             .set_default();
 
-        Telemetry {
+        Self {
             metrics,
-            _tracing_guard,
+            tracing_guard,
         }
     }
 
+    #[must_use]
     pub fn metrics(&self) -> &BlackboxRecorder {
+        let _ = &self.tracing_guard;
         self.metrics.borrow_owner()
     }
 
+    #[must_use]
     pub fn counter(&self, name: &'static str) -> Option<u64> {
         self.metrics().get(&name.into_counter())
     }
 
+    #[must_use]
     pub fn gauge(&self, name: &'static str) -> Option<f64> {
         self.metrics().get(&name.into_gauge())
     }

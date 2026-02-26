@@ -1,9 +1,11 @@
 [package]
 name = "laminar-testing"
+description = "Testing helpers and telemetry utilities for Laminar crates."
+readme = "README.md"
 version.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["testing", "metrics", "tracing"]
+categories = ["development-tools::testing"]
 license.workspace = true
 repository.workspace = true
 edition.workspace = true
@@ -12,7 +14,6 @@ publish = false
 [dependencies]
 blackbox-metrics = "0.0.1"
 color-eyre = { version = "0.6.5", features = ["track-caller"] }
-eyre = "0.6.12"
 metrics = "0.24.3"
 self_cell = "1.2.2"
 tokio = "1.49.0"

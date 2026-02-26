@@ -10,11 +10,13 @@ use strum::FromRepr;
 
 pub use crate::api::record::Record;
 
-pub(crate) fn now() -> i64 {
-    SystemTime::now()
+#[must_use]
+pub fn now() -> i64 {
+    let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_millis() as i64
+        .as_millis();
+    i64::try_from(millis).unwrap_or(i64::MAX)
 }
 
 #[repr(u8)]
@@ -37,12 +39,12 @@ pub enum Level {
 
 impl From<&tracing::Level> for Level {
     fn from(level: &tracing::Level) -> Self {
-        match level {
-            &tracing::Level::TRACE => Level::Trace,
-            &tracing::Level::DEBUG => Level::Debug,
-            &tracing::Level::INFO => Level::Info,
-            &tracing::Level::WARN => Level::Warn,
-            &tracing::Level::ERROR => Level::Error,
+        match *level {
+            tracing::Level::TRACE => Self::Trace,
+            tracing::Level::DEBUG => Self::Debug,
+            tracing::Level::INFO => Self::Info,
+            tracing::Level::WARN => Self::Warn,
+            tracing::Level::ERROR => Self::Error,
         }
     }
 }
@@ -52,12 +54,12 @@ impl FromStr for Level {
 
     fn from_str(level: &str) -> Result<Self, Self::Err> {
         match level.trim().to_ascii_lowercase().as_str() {
-            "trace" | "trc" => Ok(Level::Trace),
-            "debug" | "dbg" => Ok(Level::Debug),
-            "info" | "information" => Ok(Level::Info),
-            "warn" | "warning" => Ok(Level::Warn),
-            "error" | "err" | "fatal" | "critical" => Ok(Level::Error),
-            "off" => Ok(Level::Off),
+            "trace" | "trc" => Ok(Self::Trace),
+            "debug" | "dbg" => Ok(Self::Debug),
+            "info" | "information" => Ok(Self::Info),
+            "warn" | "warning" => Ok(Self::Warn),
+            "error" | "err" | "fatal" | "critical" => Ok(Self::Error),
+            "off" => Ok(Self::Off),
             _ => Err(()),
         }
     }
@@ -68,12 +70,12 @@ impl TryFrom<i64> for Level {
 
     fn try_from(level: i64) -> Result<Self, ()> {
         match level {
-            0 | 10 => Ok(Level::Trace),
-            1 | 20 => Ok(Level::Debug),
-            2 | 30 => Ok(Level::Info),
-            3 | 40 => Ok(Level::Warn),
-            4 | 50 => Ok(Level::Error),
-            5 => Ok(Level::Off),
+            0 | 10 => Ok(Self::Trace),
+            1 | 20 => Ok(Self::Debug),
+            2 | 30 => Ok(Self::Info),
+            3 | 40 => Ok(Self::Warn),
+            4 | 50 => Ok(Self::Error),
+            5 => Ok(Self::Off),
             _ => Err(()),
         }
     }
@@ -85,7 +87,7 @@ impl TryFrom<u64> for Level {
     fn try_from(level: u64) -> Result<Self, ()> {
         i64::try_from(level)
             .map_err(|_| ()) //
-            .and_then(Level::try_from)
+            .and_then(Self::try_from)
     }
 }
 
@@ -97,19 +99,20 @@ pub struct SourceProcess {
 }
 
 impl Default for SourceProcess {
-    fn default() -> SourceProcess {
+    fn default() -> Self {
         let pid = std::process::id();
 
         let name = std::env::current_exe()
-            .map(|p| {
+            .map_or_else(|_| "unknown".to_string(), |p| {
                 p.file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .unwrap_or("unknown".to_string())
-            })
-            .unwrap_or("unknown".to_string());
-        let start = now() as u64;
+                    .map_or_else(
+                        || "unknown".to_string(),
+                        |name| name.to_string_lossy().into_owned(),
+                    )
+            });
+        let start = u64::try_from(now()).unwrap_or_default();
 
-        SourceProcess { pid, name, start }
+        Self { pid, name, start }
     }
 }
 
@@ -118,7 +121,7 @@ impl From<String> for SourceProcess {
         Self {
             pid: 0,
             name,
-            start: now() as u64,
+            start: u64::try_from(now()).unwrap_or_default(),
         }
     }
 }
@@ -128,11 +131,13 @@ impl TryFrom<u32> for SourceProcess {
     type Error = String;
 
     fn try_from(pid: u32) -> Result<Self, Self::Error> {
-        let info = proc_pid::pidinfo::<BSDInfo>(pid as i32, 0)?;
+        let pid_i32 = i32::try_from(pid)
+            .map_err(|_| format!("pid out of range for i32: {pid}"))?;
+        let info = proc_pid::pidinfo::<BSDInfo>(pid_i32, 0)?;
 
-        Ok(SourceProcess {
+        Ok(Self {
             pid,
-            name: proc_pid::name(pid as i32)?,
+            name: proc_pid::name(pid_i32)?,
             start: (info.pbi_start_tvsec as u64) * 1_000
                 + (info.pbi_start_tvusec as u64) / 1_000,
         })
@@ -151,9 +156,10 @@ impl From<u32> for SourceProcess {
 }
 
 fn get_hostname() -> String {
-    hostname::get()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or("unknown".to_string())
+    hostname::get().map_or_else(
+        |_| "unknown".to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    )
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, bon::Builder)]

@@ -5,7 +5,11 @@ mod record;
 mod series;
 mod stream;
 
-use std::{convert::Infallible, path::PathBuf, sync::RwLock};
+use std::{
+    convert::Infallible,
+    path::{Path, PathBuf},
+    sync::RwLock,
+};
 
 use blackbox_metrics::{
     BlackboxRecorder, CounterKey, CounterValue, KeyExt,
@@ -24,7 +28,7 @@ use crate::{
     stream::{MESSAGE_RECEIVED, RecordStream},
 };
 
-const DB_NAME: &'static str = "laminar.db";
+const DB_NAME: &str = "laminar.db";
 pub(crate) const ON_EVENT: &str = "got_event";
 
 serde_with::serde_conv!(
@@ -72,7 +76,7 @@ fn setup_logging(config: LayerConfig, enable: bool) -> Result<()> {
     tracing_subscriber::registry()
         .with(env_filter)
         .with(fmt)
-        .with(enable.then(|| layer))
+        .with(enable.then_some(layer))
         .init();
 
     if enable {
@@ -87,10 +91,11 @@ fn setup_logging(config: LayerConfig, enable: bool) -> Result<()> {
     Ok(())
 }
 
-fn clean_app_data(path: &PathBuf) -> Result<()> {
+#[cfg(feature = "clean")]
+fn clean_app_data(path: &Path) -> Result<()> {
     tracing::error!("cleaning {}", path.to_string_lossy());
 
-    std::fs::remove_dir_all(&path).ok();
+    std::fs::remove_dir_all(path).ok();
 
     Ok(())
 }
@@ -121,7 +126,7 @@ impl Storage {
         })
     }
 
-    fn relative_data(&self, path: &PathBuf) -> Result<PathBuf> {
+    fn relative_data(&self, path: &Path) -> Result<PathBuf> {
         Ok(path.strip_prefix(&self.root)?.to_path_buf())
     }
 }
@@ -254,7 +259,7 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the app")
-        .run(move |handle, ev| {
+        .run(move |_handle, ev| {
             #[cfg(debug_assertions)]
             if let tauri::RunEvent::ExitRequested { .. } = ev {
                 eprintln!("\n====metrics=====\n{}", recorder.snapshot());

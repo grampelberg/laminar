@@ -4,19 +4,16 @@ pub mod config;
 mod reader;
 pub mod sink;
 
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::sync::Arc;
 
 use eyre::Result;
-use iroh::{Endpoint, EndpointAddr, address_lookup::MdnsAddressLookup};
+use iroh::{Endpoint, EndpointAddr};
 pub use reader::Reader;
 use tokio::{
-    sync::{
-        broadcast,
-        mpsc::{self, Receiver, Sender},
-    },
+    sync::broadcast,
     task::JoinHandle,
 };
-use tracing::{Instrument, Subscriber, field::Visit};
+use tracing::{Instrument, Subscriber};
 use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
 
 pub use crate::{api::*, config::Config};
@@ -27,7 +24,7 @@ use crate::{
 
 const DROP_TARGET: &str = "inspector::drop";
 
-#[derive(bon::Builder)]
+#[derive(Debug, bon::Builder)]
 pub struct Writer {
     rx: broadcast::Receiver<Arc<Record>>,
     config: LayerConfig,
@@ -90,16 +87,19 @@ impl Writer {
 
 struct DropCallsite;
 
+#[derive(Debug)]
 pub struct InspectorLayerBuilder {
     config: Option<LayerConfig>,
 }
 
 impl InspectorLayerBuilder {
+    #[must_use]
     pub fn config(mut self, cfg: LayerConfig) -> Self {
         self.config = Some(cfg);
         self
     }
 
+    #[must_use]
     pub fn maybe_config(mut self, cfg: Option<LayerConfig>) -> Self {
         self.config = cfg;
         self
@@ -132,19 +132,19 @@ impl InspectorLayerBuilder {
 //
 // TODO: I want this to work in WASM environments. The network
 // stack is going to need to be pluggable and most of tokio won't be usable.
+#[derive(Debug)]
 pub struct InspectorLayer {
     disabled: bool,
     tx: EmitterSender<Record>,
 }
 
 impl InspectorLayer {
-    const BUFFER_CAPACITY: usize = 1000;
-
     pub fn new() -> Result<(Self, Writer)> {
-        Ok(Self::builder().build()?)
+        Self::builder().build()
     }
 
-    pub fn builder() -> InspectorLayerBuilder {
+    #[must_use]
+    pub const fn builder() -> InspectorLayerBuilder {
         InspectorLayerBuilder { config: None }
     }
 
@@ -153,11 +153,12 @@ impl InspectorLayer {
             return;
         }
 
-        if let Err(_) = self.tx.send(record) {
+        if self.tx.send(record).is_err() {
             tracing::debug!("unable to send record");
         }
     }
 
+    #[must_use]
     pub fn disabled(&self) -> bool {
         self.disabled || self.tx.is_closed()
     }
@@ -201,8 +202,7 @@ where
         let span = ctx.span(id).expect("span exists");
         let will_drop = span
             .parent()
-            .map(|p| p.extensions().get::<DropCallsite>().is_some())
-            .unwrap_or(false);
+            .is_some_and(|p| p.extensions().get::<DropCallsite>().is_some());
 
         if attrs.metadata().target() == DROP_TARGET || will_drop {
             span.extensions_mut().insert(DropCallsite);
@@ -241,8 +241,7 @@ where
 
         let will_drop = ctx
             .lookup_current()
-            .map(|p| p.extensions().get::<DropCallsite>().is_some())
-            .unwrap_or(false);
+            .is_some_and(|p| p.extensions().get::<DropCallsite>().is_some());
 
         if will_drop {
             metrics::counter!("layer.drop.event").increment(1);
@@ -279,10 +278,8 @@ mod test {
     use std::{sync::Arc, time::Duration};
 
     use blackbox_metrics::{BlackboxRecorder, KeyExt, MetricsRead};
-    use color_eyre::owo_colors::colors::xterm::Black;
     use iroh::SecretKey;
     use laminar_testing::Telemetry;
-    use metrics::Key;
     use rand::rng;
     use serde::Serialize;
     use tokio::{sync::broadcast, time};
@@ -293,6 +290,7 @@ mod test {
 
     // TODO: need a multi-threaded test
     #[tokio::test]
+    #[allow(clippy::mutable_key_type)]
     async fn test_logging() -> Result<()> {
         color_eyre::install().ok();
         let recorder = BlackboxRecorder::default();
@@ -362,12 +360,11 @@ mod test {
         let targets = counters
             .keys()
             .filter(|k| k.name() == "layer.span")
-            .map(|k| {
+            .flat_map(|k| {
                 k.labels()
                     .filter(|l| l.key() == "target")
-                    .map(|l| l.value())
+                    .map(metrics::Label::value)
             })
-            .flatten()
             .collect::<Vec<_>>();
 
         assert!(

@@ -1,9 +1,11 @@
 [package]
 name = "laminar-sink"
+description = "log viewer"
+readme = "../README.md"
 version.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["tauri", "logging", "tracing"]
+categories = ["development-tools::debugging", "gui"]
 license.workspace = true
 repository.workspace = true
 edition.workspace = true

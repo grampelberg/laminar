@@ -5,12 +5,12 @@ use laminar_stream::{Config, Reader, sink::ResponseEventKind};
 
 #[derive(Parser, Debug)]
 #[command(name = "sink", about = "Run sink server and print received records")]
-pub struct Args {
+pub(crate) struct Args {
     #[arg(from_global)]
     config: Config,
 }
 
-pub async fn run(args: Args) -> Result<()> {
+pub(crate) async fn run(args: Args) -> Result<()> {
     crate::init_logging();
 
     let mut reader = Reader::builder()

@@ -22,7 +22,7 @@ use crate::{
 
 const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ReaderBuilder {
     config: Option<ReaderConfig>,
     key: Option<SecretKey>,
@@ -80,16 +80,19 @@ impl ReaderBuilder {
 // Most of the functionality here is around config management and basic setup.
 // See the sink tests for more in-depth tests for the server side of the sink
 // itself.
+#[derive(Debug)]
 pub struct Reader {
     rx: Receiver<sink::Response<Claims, Record>>,
     router: Router,
 }
 
 impl Reader {
+    #[must_use]
     pub fn builder() -> ReaderBuilder {
         ReaderBuilder::default()
     }
 
+    #[must_use]
     pub fn address(&self) -> PublicKey {
         self.router.endpoint().secret_key().public()
     }
