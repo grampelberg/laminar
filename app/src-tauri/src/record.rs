@@ -51,8 +51,8 @@ async fn insert_record_data(
     )
     .bind(identity_pk)
     .bind(body.kind.clone() as i64)
-    .bind(body.timestamp as i64)
-    .bind(received_at as i64)
+    .bind(body.timestamp)
+    .bind(received_at)
     .bind(
         body.trace
             .as_ref()

@@ -31,10 +31,9 @@ struct PipeFDInfo {
 
 impl PartialEq for PipeFDInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.pipeinfo.pipe_handle == other.pipeinfo.pipe_handle
-            || self.pipeinfo.pipe_peerhandle == other.pipeinfo.pipe_handle
-            || self.pipeinfo.pipe_handle == other.pipeinfo.pipe_peerhandle
-            || self.pipeinfo.pipe_peerhandle == other.pipeinfo.pipe_peerhandle
+        let lhs = [self.pipeinfo.pipe_handle, self.pipeinfo.pipe_peerhandle];
+        let rhs = [other.pipeinfo.pipe_handle, other.pipeinfo.pipe_peerhandle];
+        lhs.iter().any(|l| rhs.iter().any(|r| l == r))
     }
 }
 
@@ -56,19 +55,21 @@ fn pipe_fds(pid: i32) -> Result<impl Iterator<Item = PipeFDInfo>> {
         .filter_map(move |fd| pidfdinfo::<PipeFDInfo>(pid, fd.proc_fd).ok()))
 }
 
-pub fn get_sources() -> Result<Option<SourceProcess>, Error> {
-    let pid = std::process::id() as i32;
+pub(super) fn get_sources() -> Result<Option<SourceProcess>, Error> {
+    let pid = i32::try_from(std::process::id())
+        .map_err(|_| Error::NoSource("pid out of range for i32".to_string()))?;
     let reader =
-        pidfdinfo::<PipeFDInfo>(pid, 0).map_err(|e| Error::NoSource(e))?;
+        pidfdinfo::<PipeFDInfo>(pid, 0).map_err(Error::NoSource)?;
 
     let all_pids = pids_by_type(ProcFilter::All)
         .map_err(|e| Error::NoSource(e.to_string()))?;
 
     let sources = all_pids
         .iter()
-        .filter(|p| **p as i32 != pid)
+        .filter_map(|p| i32::try_from(*p).ok())
+        .filter(|p| *p != pid)
         .filter_map(|p| {
-            if !pipe_fds(*p as i32)
+            if !pipe_fds(p)
                 .into_iter()
                 .flatten()
                 .any(|writer| writer == reader)
@@ -76,10 +77,10 @@ pub fn get_sources() -> Result<Option<SourceProcess>, Error> {
                 return None;
             }
 
-            Some(SourceProcess::try_from(*p))
+            Some(SourceProcess::try_from(u32::try_from(p).ok()?))
         })
         .collect::<Result<HashSet<_>, String>>()
-        .map_err(|e| Error::NoSource(e))?
+        .map_err(Error::NoSource)?
         .into_iter()
         .collect::<Vec<_>>();
 

@@ -40,7 +40,7 @@ impl Record {
         let message = attrs.metadata().name().to_string();
         let fields = attrs.metadata().merge_fields(visitor.raw);
 
-        Record::builder()
+        Self::builder()
             .kind(Kind::Span)
             .level(attrs.metadata().level().into())
             .source(attrs.metadata().target().to_string())
@@ -53,6 +53,7 @@ impl Record {
             .build()
     }
 
+    #[must_use]
     pub fn from_event(event: &tracing::Event<'_>) -> Self {
         let mut visitor = FieldVisitor::default();
         event.record(&mut visitor);
@@ -64,14 +65,14 @@ impl Record {
 
         let fields = event.metadata().merge_fields(visitor.raw);
 
-        Record::builder()
+        Self::builder()
             .kind(Kind::Event)
             .timestamp(now())
             .level(event.metadata().level().into())
             .source(event.metadata().target().to_string())
             .trace(TraceId {
                 span: None,
-                parent: event.parent().map(|i| i.into_u64()),
+                parent: event.parent().map(tracing::Id::into_u64),
             })
             .message(message)
             .fields(serde_json::Value::Object(fields).to_string())
@@ -108,8 +109,7 @@ struct FieldVisitor {
 impl Visit for FieldVisitor {
     fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
         let value = serde_json::Number::from_f64(value)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null);
+            .map_or(serde_json::Value::Null, serde_json::Value::Number);
         self.raw.insert(field.name().to_string(), value);
     }
 

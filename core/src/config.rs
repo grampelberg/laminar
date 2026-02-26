@@ -26,17 +26,9 @@ impl Default for LayerConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct ReaderConfig {
     pub key: KeySource,
-}
-
-impl Default for ReaderConfig {
-    fn default() -> Self {
-        Self {
-            key: KeySource::default(),
-        }
-    }
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
@@ -53,35 +45,42 @@ impl Config {
     const ENV_PREFIX: &'static str = "INSPECTOR_";
 
     fn figment_with_path(path: Option<&str>) -> Figment {
-        let path = match path {
-            Some(path) => path.to_string(),
-            None => std::env::var(Config::PATH_ENV)
-                .unwrap_or(Config::PATH.to_string()),
-        };
+        let path = path.map_or_else(
+            || {
+                std::env::var(Self::PATH_ENV)
+                    .unwrap_or_else(|_| Self::PATH.to_string())
+            },
+            str::to_string,
+        );
 
-        Figment::from(Config::default())
+        Figment::from(Self::default())
             .merge(providers::Toml::file(shellexpand::tilde(&path).as_ref()))
-            .merge(providers::Env::prefixed(Config::ENV_PREFIX))
+            .merge(providers::Env::prefixed(Self::ENV_PREFIX))
     }
 
-    pub fn load() -> Result<Config, figment::Error> {
-        Config::figment_with_path(None).extract()
+    #[allow(clippy::result_large_err)]
+    pub fn load() -> Result<Self, figment::Error> {
+        Self::figment_with_path(None).extract()
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn load_from_path(
         path: impl AsRef<str>,
-    ) -> Result<Config, figment::Error> {
-        Config::figment_with_path(Some(path.as_ref())).extract()
+    ) -> Result<Self, figment::Error> {
+        Self::figment_with_path(Some(path.as_ref())).extract()
     }
 
+    #[must_use]
     pub fn layer(&self) -> LayerConfig {
         self.layer.clone()
     }
 
+    #[must_use]
     pub fn reader(&self) -> ReaderConfig {
         self.reader.clone()
     }
 
+    #[must_use]
     pub fn split(&self) -> (LayerConfig, ReaderConfig) {
         (self.layer.clone(), self.reader.clone())
     }
@@ -95,7 +94,7 @@ impl Provider for Config {
     fn data(
         &self,
     ) -> Result<figment::value::Map<Profile, Dict>, figment::Error> {
-        figment::providers::Serialized::defaults(Config::default()).data()
+        figment::providers::Serialized::defaults(Self::default()).data()
     }
 }
 

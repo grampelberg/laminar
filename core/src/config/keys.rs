@@ -9,18 +9,13 @@ use shellexpand::tilde;
 
 const DEFAULT_KEY_PATH: &str = "~/.config/inspector/reader.key";
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum KeySource {
+    #[default]
     None,
     File { path: String },
     Env { var: String },
-}
-
-impl Default for KeySource {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl KeySource {

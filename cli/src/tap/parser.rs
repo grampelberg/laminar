@@ -4,39 +4,39 @@ use laminar_stream::{Kind, Level, Record};
 
 use super::Format;
 
-pub(crate) struct Parser {
+pub(super) struct Parser {
     format: Format,
     source: Option<String>,
 }
 
 impl Parser {
-    pub(crate) fn new(format: Format, source: Option<String>) -> Self {
+    pub(super) const fn new(format: Format, source: Option<String>) -> Self {
         Self { format, source }
     }
 
     pub(crate) fn to_record(&self, line: &[u8]) -> Result<Record> {
         match self.format {
-            Format::Text => self.as_text(line),
+            Format::Text => Ok(self.as_text(line)),
             Format::Json => self.as_json(line),
             Format::Auto => {
                 let first_non_ws = line
                     .iter()
                     .copied()
                     .find(|byte| !byte.is_ascii_whitespace());
-                if matches!(first_non_ws, Some(b'{') | Some(b'[')) {
+                if matches!(first_non_ws, Some(b'{' | b'[')) {
                     return self.as_json(line);
                 }
-                self.as_text(line)
+                Ok(self.as_text(line))
             }
         }
     }
 
-    fn as_text(&self, line: &[u8]) -> Result<Record> {
-        Ok(Record::builder()
+    fn as_text(&self, line: &[u8]) -> Record {
+        Record::builder()
             .maybe_source(self.source.clone())
             .message(line.to_content())
             .fields("{}")
-            .build())
+            .build()
     }
 
     fn as_json(&self, line: &[u8]) -> Result<Record> {
@@ -51,7 +51,9 @@ impl Parser {
             .maybe_source(source)
             .maybe_level(parsed.level())
             .timestamp(
-                parsed.timestamp().unwrap_or(Utc::now().timestamp_millis()),
+                parsed
+                    .timestamp()
+                    .unwrap_or_else(|| Utc::now().timestamp_millis()),
             )
             .message(message)
             .fields(line.to_content())
@@ -75,7 +77,7 @@ impl ToContent for &[u8] {
     }
 }
 
-fn normalize_epoch(raw: i64) -> i64 {
+const fn normalize_epoch(raw: i64) -> i64 {
     let abs = raw.saturating_abs();
     if abs >= 1_000_000_000_000_000_000 {
         raw / 1_000_000
@@ -124,7 +126,12 @@ impl ToFields for serde_json::Map<String, serde_json::Value> {
                     return i64::try_from(value).ok().map(normalize_epoch);
                 }
                 if let Some(value) = num.as_f64() {
-                    return Some(normalize_epoch(value as i64));
+                    if !value.is_finite() {
+                        return None;
+                    }
+                    let rounded = value.round();
+                    let parsed = format!("{rounded:.0}").parse::<i64>().ok()?;
+                    return Some(normalize_epoch(parsed));
                 }
                 None
             }

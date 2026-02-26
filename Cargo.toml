@@ -20,7 +20,7 @@ unused-imports = "warn"
 unused-must-use = "warn"
 unreachable-pub = "warn"
 missing-debug-implementations = "warn"
-missing-docs = "warn"
+missing-docs = "allow"
 unsafe-op-in-unsafe-fn = "deny"
 
 [workspace.lints.clippy]

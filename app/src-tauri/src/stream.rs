@@ -14,7 +14,7 @@ use crate::{
     record::{WithSql, close_open_sessions},
 };
 
-pub const MESSAGE_RECEIVED: &'static str = "message.received";
+pub const MESSAGE_RECEIVED: &str = "message.received";
 
 #[derive(bon::Builder)]
 pub struct RecordStream {
@@ -68,8 +68,6 @@ impl RecordStream {
                 }
             }
         }
-
-        Ok(())
     }
 }
 

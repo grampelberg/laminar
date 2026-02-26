@@ -11,7 +11,7 @@ use eyre::Result;
 use futures::{StreamExt, stream};
 use iroh::{
     Endpoint, EndpointAddr, EndpointId,
-    endpoint::{Accept, Connection, RecvStream},
+    endpoint::{Connection, RecvStream},
     protocol::{AcceptError, ProtocolHandler},
 };
 use serde::Serialize;
@@ -105,12 +105,12 @@ pub enum DisconnectReason {
 }
 
 impl DisconnectReason {
-    pub(crate) fn labels(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("reason", self.into())]
+    pub(crate) fn labels(self) -> Vec<(&'static str, &'static str)> {
+        vec![("reason", (&self).into())]
     }
 }
 
-#[derive(bon::Builder)]
+#[derive(Debug, Clone, Copy, bon::Builder)]
 pub struct SinkOpts {
     #[builder(default = 10)]
     buffer_size: usize,
@@ -122,16 +122,19 @@ impl Default for SinkOpts {
     }
 }
 
+#[derive(Debug)]
 pub struct Sink<Assertion, Body> {
     handler: SinkHandler<Assertion, Body>,
     receiver: mpsc::Receiver<Response<Assertion, Body>>,
 }
 
 impl<Assertion, Body> Sink<Assertion, Body> {
+    #[must_use]
     pub fn build() -> Self {
         Self::build_with_opts(SinkOpts::default())
     }
 
+    #[must_use]
     pub fn build_with_opts(opts: SinkOpts) -> Self {
         let (tx, rx) = mpsc::channel(opts.buffer_size);
 
@@ -141,6 +144,7 @@ impl<Assertion, Body> Sink<Assertion, Body> {
         }
     }
 
+    #[must_use]
     pub fn split(
         self,
     ) -> (
@@ -243,7 +247,7 @@ where
 
             Session::builder()
                 .identity(Identity {
-                    observed: peer.clone(),
+                    observed: peer,
                     assertion,
                 })
                 .stream(msg_stream)
@@ -264,6 +268,7 @@ pub(crate) trait SinkDriver {
         T: Serialize + Send + Sync + 'static;
 }
 
+#[must_use]
 pub fn emitter<T>(
     buffer_size: usize,
 ) -> (EmitterSender<T>, broadcast::Receiver<Arc<T>>) {
@@ -271,13 +276,21 @@ pub fn emitter<T>(
     (EmitterSender(tx), rx)
 }
 
+#[derive(Debug)]
 pub struct EmitterSender<T>(broadcast::Sender<Arc<T>>);
 
 impl<T> EmitterSender<T> {
+    #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[must_use]
     pub fn is_closed(&self) -> bool {
         self.0.receiver_count() == 0
     }
@@ -290,7 +303,7 @@ impl<T> EmitterSender<T> {
     }
 }
 
-#[derive(Clone, bon::Builder)]
+#[derive(Debug, Clone, bon::Builder)]
 pub struct EmitterOpts {
     #[builder(default = 10_000)]
     pub buffer_size: usize,
@@ -306,7 +319,7 @@ impl Default for EmitterOpts {
     }
 }
 
-#[derive(bon::Builder)]
+#[derive(Debug, bon::Builder)]
 pub struct Client<Assertion>
 where
     Assertion: Serialize,
@@ -368,7 +381,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_client() -> Result<()> {
-        const RECEIVE_TIMEOUT: Duration = Duration::from_millis(1000);
+        const RECEIVE_TIMEOUT: Duration = Duration::from_secs(1);
 
         let ctx = Telemetry::new();
 
@@ -425,7 +438,9 @@ mod tests {
 
         tokio::task::yield_now().await;
 
-        ctx.metrics().assert(&"driver.connected".into_gauge(), 0.0);
+        ctx.metrics()
+            .assert(&"driver.connected".into_gauge(), 0.0)
+            .await?;
 
         for i in 0..2 {
             emitter.send(i)?;
