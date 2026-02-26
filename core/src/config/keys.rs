@@ -3,19 +3,22 @@ use std::{io::ErrorKind, path::PathBuf, str::FromStr};
 use data_encoding::BASE32_NOPAD;
 use eyre::{Result, WrapErr, eyre};
 use iroh::SecretKey;
-use rand::rng;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 
-const DEFAULT_KEY_PATH: &str = "~/.config/inspector/reader.key";
+const DEFAULT_KEY_PATH: &str = "~/.config/laminar/reader.key";
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum KeySource {
     #[default]
     None,
-    File { path: String },
-    Env { var: String },
+    File {
+        path: String,
+    },
+    Env {
+        var: String,
+    },
 }
 
 impl KeySource {
@@ -60,7 +63,8 @@ impl KeySource {
                     std::fs::create_dir_all(parent)?;
                 }
 
-                let secret_key = SecretKey::generate(&mut rng());
+                let secret_key =
+                    SecretKey::from_bytes(&rand::random::<[u8; 32]>());
                 std::fs::write(
                     &key_path,
                     Self::encode_secret_key(&secret_key),
@@ -98,7 +102,8 @@ impl KeySource {
                     tokio::fs::create_dir_all(parent).await?;
                 }
 
-                let secret_key = SecretKey::generate(&mut rng());
+                let secret_key =
+                    SecretKey::from_bytes(&rand::random::<[u8; 32]>());
                 tokio::fs::write(
                     &key_path,
                     Self::encode_secret_key(&secret_key),

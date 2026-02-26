@@ -112,7 +112,6 @@ where
 mod tests {
     use futures::stream::{self, BoxStream};
     use iroh::{EndpointId, SecretKey};
-    use rand::rng;
     use laminar_testing::Telemetry;
 
     use super::*;
@@ -134,7 +133,7 @@ mod tests {
             .heartbeat_interval(heartbeat_interval)
             .identity(Identity {
                 observed: EndpointId::from(
-                    SecretKey::generate(&mut rng()).public(),
+                    SecretKey::from_bytes(&rand::random::<[u8; 32]>()).public(),
                 ),
                 assertion: (),
             })

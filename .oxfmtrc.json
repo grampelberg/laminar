@@ -1,5 +1,5 @@
 {
-  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "$schema": "./app/node_modules/oxfmt/configuration_schema.json",
   "useTabs": false,
   "tabWidth": 2,
   "printWidth": 80,
@@ -13,9 +13,9 @@
   "bracketSpacing": true,
   "singleAttributePerLine": false,
   "proseWrap": "always",
-  "experimentalSortImports": {
+  "sortImports": {
     "groups": [
-      ["side-effect"],
+      ["side_effect"],
       ["builtin"],
       ["external", "type-external"],
       ["internal", "type-internal"],
@@ -25,7 +25,7 @@
     ]
   },
   "experimentalTailwindcss": {
-    "stylesheet": "./inspector/src/index.css",
+    "stylesheet": "./app/src/index.css",
     "attributes": ["class", "className"],
     "functions": ["clsx", "cn"],
     "preserveWhitespace": true

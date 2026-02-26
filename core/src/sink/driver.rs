@@ -122,7 +122,7 @@ impl Driver {
         if bytes.len() > u32::MAX as usize {
             return Err("message too long".into());
         }
-        
+
         let frame_len =
             u32::try_from(bytes.len()).expect("bytes length pre-validated");
         stream.write_u32(frame_len).await?;

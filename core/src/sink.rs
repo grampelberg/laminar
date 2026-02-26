@@ -1,4 +1,4 @@
-mod driver;
+pub mod driver;
 mod session;
 
 use std::{
@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use crate::api;
 
-pub const ALPN: &[u8] = b"inspector/sink/0";
+pub const ALPN: &[u8] = b"laminar/sink/0";
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 pub(crate) use driver::Driver;
@@ -353,7 +353,6 @@ mod tests {
         SecretKey, address_lookup::MdnsAddressLookup, protocol::Router,
     };
     use laminar_testing::Telemetry;
-    use rand::rng;
     use tokio::time;
 
     use super::*;
@@ -385,8 +384,8 @@ mod tests {
 
         let ctx = Telemetry::new();
 
-        let server_key = SecretKey::generate(&mut rng());
-        let client_key = SecretKey::generate(&mut rng());
+        let server_key = SecretKey::from_bytes(&rand::random::<[u8; 32]>());
+        let client_key = SecretKey::from_bytes(&rand::random::<[u8; 32]>());
 
         let endpoint = Endpoint::builder()
             .secret_key(client_key.clone())

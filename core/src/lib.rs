@@ -1,4 +1,3 @@
-//! An inspector for tracing events.
 mod api;
 pub mod config;
 mod reader;
@@ -9,10 +8,7 @@ use std::sync::Arc;
 use eyre::Result;
 use iroh::{Endpoint, EndpointAddr};
 pub use reader::Reader;
-use tokio::{
-    sync::broadcast,
-    task::JoinHandle,
-};
+use tokio::{sync::broadcast, task::JoinHandle};
 use tracing::{Instrument, Subscriber};
 use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
 
@@ -22,7 +18,7 @@ use crate::{
     sink::{EmitterOpts, EmitterSender, SinkDriver, emitter},
 };
 
-const DROP_TARGET: &str = "inspector::drop";
+const DROP_TARGET: &str = "laminar_stream::drop";
 
 #[derive(Debug, bon::Builder)]
 pub struct Writer {
@@ -37,10 +33,10 @@ pub struct Writer {
 //   much.
 impl Writer {
     pub async fn run(self) -> Result<JoinHandle<()>> {
-        // The `inspector::drop` target is important. That's used for filtering
-        // so that event/span recursion doesn't happen. Anything child
-        // that has a parent including that target will end up being
-        // dropped by the layer automatically.
+        // The `laminar_stream::drop` target is important. That's used for
+        // filtering so that event/span recursion doesn't happen.
+        // Anything child that has a parent including that target will
+        // end up being dropped by the layer automatically.
         let span = tracing::error_span!(
             target: DROP_TARGET,
             parent: tracing::Span::current(),
@@ -48,6 +44,8 @@ impl Writer {
         );
 
         let _drop = span.enter();
+
+        tracing::info!(config = ?self.config, "starting writer");
 
         let Some(addr): Option<EndpointAddr> =
             self.config.remote.map(Into::into)
@@ -88,11 +86,11 @@ impl Writer {
 struct DropCallsite;
 
 #[derive(Debug)]
-pub struct InspectorLayerBuilder {
+pub struct StreamLayerBuilder {
     config: Option<LayerConfig>,
 }
 
-impl InspectorLayerBuilder {
+impl StreamLayerBuilder {
     #[must_use]
     pub fn config(mut self, cfg: LayerConfig) -> Self {
         self.config = Some(cfg);
@@ -105,7 +103,7 @@ impl InspectorLayerBuilder {
         self
     }
 
-    pub fn build(self) -> Result<(InspectorLayer, Writer)> {
+    pub fn build(self) -> Result<(StreamLayer, Writer)> {
         let config = match self.config {
             Some(cfg) => cfg,
             None => Config::load()?.layer(),
@@ -114,7 +112,7 @@ impl InspectorLayerBuilder {
         let (tx, rx) = emitter(EmitterOpts::default().buffer_size);
 
         Ok((
-            InspectorLayer {
+            StreamLayer {
                 tx,
                 disabled: config.remote.is_none(),
             },
@@ -133,19 +131,19 @@ impl InspectorLayerBuilder {
 // TODO: I want this to work in WASM environments. The network
 // stack is going to need to be pluggable and most of tokio won't be usable.
 #[derive(Debug)]
-pub struct InspectorLayer {
+pub struct StreamLayer {
     disabled: bool,
     tx: EmitterSender<Record>,
 }
 
-impl InspectorLayer {
+impl StreamLayer {
     pub fn new() -> Result<(Self, Writer)> {
         Self::builder().build()
     }
 
     #[must_use]
-    pub const fn builder() -> InspectorLayerBuilder {
-        InspectorLayerBuilder { config: None }
+    pub const fn builder() -> StreamLayerBuilder {
+        StreamLayerBuilder { config: None }
     }
 
     fn send(&self, record: Record) {
@@ -164,11 +162,11 @@ impl InspectorLayer {
     }
 }
 
-// It is important that spans/events generated as part of the inspector layer
+// It is important that spans/events generated as part of the laminar layer
 // itself are dropped. They multiply exponentially otherwise. To do the
 // dropping, we:
 //
-// - Look for a span that has target `inspector::drop`.
+// - Look for a span that has target `laminar_stream::drop`.
 // - Add an extension `DropCallsite` to the span.
 // - Look for a parent span that has the `DropCallsite` extension.
 //
@@ -182,10 +180,10 @@ impl InspectorLayer {
 //   library author, it doesn't always happen.
 // - Some library authors explicitly remove the parent span entirely (iroh's
 //   `RemoteStateActor`) for example.
-// - The tokio runtime starts up outside of the inspector layer itself and is
+// - The tokio runtime starts up outside of the stream layer itself and is
 //   shared.
 // - Some events have the span explicitly removed.
-impl<S> Layer<S> for InspectorLayer
+impl<S> Layer<S> for StreamLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -280,7 +278,6 @@ mod test {
     use blackbox_metrics::{BlackboxRecorder, KeyExt, MetricsRead};
     use iroh::SecretKey;
     use laminar_testing::Telemetry;
-    use rand::rng;
     use serde::Serialize;
     use tokio::{sync::broadcast, time};
     use tracing_subscriber::{filter::LevelFilter, prelude::*};
@@ -301,10 +298,10 @@ mod test {
              -F test_pretty"
         );
 
-        let keypair = SecretKey::generate(&mut rng());
+        let keypair = SecretKey::from_bytes(&rand::random::<[u8; 32]>());
         tracing::info!("{}", keypair.public());
 
-        let (layer, writer) = InspectorLayer::builder()
+        let (layer, writer) = StreamLayer::builder()
             .config(LayerConfig::builder().remote(keypair.public()).build())
             .build()?;
 
@@ -328,7 +325,7 @@ mod test {
 
         let drop_span = tracing::error_span!(
             target: DROP_TARGET,
-            "inspector::drop"
+            "laminar_stream::drop"
         );
 
         // It is important that this happens *after* the subscriber has been
@@ -383,7 +380,7 @@ mod test {
     // Verify that everything is disabled when a remote is not configured.
     #[tokio::test]
     async fn test_disabled() -> Result<()> {
-        let (layer, writer) = InspectorLayer::builder()
+        let (layer, writer) = StreamLayer::builder()
             .config(LayerConfig::builder().build())
             .build()?;
 
@@ -400,10 +397,10 @@ mod test {
     async fn test_reconnect() -> Result<()> {
         let _tel = Telemetry::new();
 
-        let keypair = SecretKey::generate(&mut rng());
+        let keypair = SecretKey::from_bytes(&rand::random::<[u8; 32]>());
         tracing::info!("{}", keypair.public());
 
-        let (layer, writer) = InspectorLayer::builder()
+        let (layer, writer) = StreamLayer::builder()
             .config(LayerConfig::builder().remote(keypair.public()).build())
             .build()?;
 
@@ -431,7 +428,7 @@ mod test {
     async fn test_garbage_collection() -> Result<()> {
         let _tel = Telemetry::new();
 
-        let (layer, writer) = InspectorLayer::builder()
+        let (layer, writer) = StreamLayer::builder()
             .config(LayerConfig::builder().build())
             .build()?;
 

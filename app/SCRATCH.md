@@ -1,6 +1,5 @@
 # Scratch
 
-- Pick a name
 - Backend -> frontend error reporting
 - Get the github dump working.
   - The console gets wedged, probably from printing "fetch page".
@@ -15,9 +14,15 @@
 - Add "annotations" that show when an event happened in the timeline, such as
   "restarted process".
 - Make retention actually do something.
+- Register endpoints with a name.
 
 ## Bugs
 
+- Ingest plot
+  - When going away from and back to the plot, there's a line drawn across the
+    entire plot until it updates.
+  - When opening the plot the first time, the point on the left bounces because
+    there's an issue with the window size.
 - There's something weird about endpoints and reconnecting if you've failed in
   the past. I had the app crash on an endpoint and then, even after restarts,
   loadgen refused to connect to that endpoint. I made a new key and, voila, it
@@ -100,16 +105,3 @@
 
   Note: it has up to ~110ms or so now. The cell renders are doing more work. I'm
   not sure you can tell that there's a delay though given all the animations.
-
-### Fixtures
-
-### Error Handling
-
-- Get a global error channel wired up so that things happening in tauri are
-  visible in the UI. Maybe toast + a dialog that pops up?
-
-### Status
-
-### Settings
-
-### Filters

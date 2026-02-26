@@ -13,7 +13,7 @@ export default defineConfig(async () => ({
   plugins: [
     react({
       babel: {
-        presets: ['jotai/babel/preset'],
+        presets: ['jotai-babel/preset'],
       },
       jsxImportSource: '@welldone-software/why-did-you-render',
     }),
@@ -21,7 +21,9 @@ export default defineConfig(async () => ({
   ],
   resolve: {
     alias: {
+      // eslint-disable-next-line unicorn/relative-url-style
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // eslint-disable-next-line unicorn/relative-url-style
       '~': fileURLToPath(new URL('./', import.meta.url)),
     },
   },
