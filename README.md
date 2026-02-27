@@ -39,8 +39,8 @@ get exactly what you need, without any extra configuration or waiting.
 
 ## Structure
 
-- [`cli`](./cli/README.md) - Tools for forwarding logs.
-- [`app`](./app/README.md) - The log viewer application.
-- [`core`](./core/README.md) - Core functionality, including the protocol,
-  client and server.
-- [`testing`](./testing/README.md) - Common testing helpers.
+- [`cli`](./cli) - Tools for forwarding logs.
+- [`app`](./app) - The log viewer application.
+- [`core`](./core) - Core functionality, including the protocol, client and
+  server.
+- [`testing`](./testing) - Common testing helpers.

@@ -1,14 +1,12 @@
 import {
+  type Atom,
   atom,
   type Getter,
   type SetStateAction,
   type WritableAtom,
 } from 'jotai'
-import { RESET, atomWithRefresh } from 'jotai/utils'
-
-import { getLogger } from '@/utils'
-
-const logger = getLogger(import.meta.url)
+import { atomEffect } from 'jotai-effect'
+import { RESET, atomWithRefresh, atomWithReset } from 'jotai/utils'
 
 export const atomWithOwnedDefault = <Value,>(
   getDefault: (get: Getter) => Value,
@@ -98,4 +96,30 @@ export const atomWithPeriodicRefresh = <Value,>(
   }
 
   return refreshable
+}
+
+export const resettable = <Value,>(
+  source: Atom<Value>,
+  initial: Value,
+): WritableAtom<Value, [SetStateAction<Value> | typeof RESET], void> => {
+  const data = atomWithReset(initial)
+
+  const update = atomEffect((get, set) => {
+    set(data, get(source))
+  })
+
+  if (import.meta.env?.MODE !== 'production') {
+    data.debugPrivate = true
+    update.debugPrivate = true
+  }
+
+  return atom(
+    get => {
+      get(update)
+      return get(data)
+    },
+    (_get, set, value) => {
+      set(data, value)
+    },
+  )
 }
