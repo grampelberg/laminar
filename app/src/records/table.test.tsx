@@ -16,6 +16,13 @@ import {
 import { getCalls, INVOKE_SELECT } from '@/tests'
 import state from '~/fixtures/tests/records/table.ts'
 
+const {
+  atoms: {
+    stateAtom: {
+      value: { rows: fixtureRows },
+    },
+  },
+} = state
 const { ROWS_CHUNK_SIZE } = dataTest
 
 // Tests:
@@ -43,7 +50,7 @@ describe('RecordsTable', () => {
 
   it('populates on mount', async () => {
     const { screen } = await renderTable(() =>
-      state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE + 1),
+      fixtureRows.slice(0, ROWS_CHUNK_SIZE + 1),
     )
 
     const rows = screen.container.querySelectorAll('tbody tr')
@@ -53,7 +60,7 @@ describe('RecordsTable', () => {
 
   it('loads more when scrolled', async () => {
     const { store, screen, spy } = await renderTable(() =>
-      state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE + 1),
+      fixtureRows.slice(0, ROWS_CHUNK_SIZE + 1),
     )
 
     const scroll = scrollTo(screen)
@@ -73,7 +80,7 @@ describe('RecordsTable', () => {
   it("stops when there's no more", async () => {
     const { store, screen, spy } = await renderTable(() =>
       // If fewer than chunk + 1 are returned, it is assumed there's nothing else in the database to load.
-      state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE - 1),
+      fixtureRows.slice(0, ROWS_CHUNK_SIZE - 1),
     )
 
     const scroll = scrollTo(screen)
@@ -95,10 +102,7 @@ describe('RecordsTable', () => {
 
   it('refreshes on filter change', async () => {
     const { store, screen, spy } = await renderTable(
-      queryFixture([
-        state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE + 1),
-        [],
-      ]),
+      queryFixture([fixtureRows.slice(0, ROWS_CHUNK_SIZE + 1), []]),
     )
 
     expect(

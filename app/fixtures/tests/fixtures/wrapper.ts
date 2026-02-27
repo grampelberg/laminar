@@ -1,11 +1,14 @@
 export default {
-  baseAtom: {
-    value: 42,
-  },
-  middleAtom: {
-    value: 1,
-  },
-  topAtom: {
-    value: 60,
+  meta: {},
+  atoms: {
+    baseAtom: {
+      value: 42,
+    },
+    middleAtom: {
+      value: 1,
+    },
+    topAtom: {
+      value: 60,
+    },
   },
 }

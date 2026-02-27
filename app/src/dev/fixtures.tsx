@@ -1,8 +1,17 @@
 import * as devalue from 'devalue'
-import { type Atom, type Getter, type Setter, useAtom, useSetAtom } from 'jotai'
+import {
+  type Atom,
+  type Getter,
+  type Setter,
+  atom,
+  useAtom,
+  useAtomValue,
+  useSetAtom,
+} from 'jotai'
 import { useAtomsSnapshot } from 'jotai-devtools'
 import { atomWithStorage } from 'jotai/utils'
 import { CheckIcon, CircleIcon, CircleOffIcon, CopyIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -34,9 +43,24 @@ const derivedSchema = z
   .strict()
 
 const itemSchema = z.union([primitiveSchema, derivedSchema])
-export const fixtureSchema = z.record(z.string(), itemSchema)
+const fixtureMetaSchema = z
+  .object({
+    description: z.string().optional(),
+    name: z.string().optional(),
+  })
+  .strict()
+
+const fixtureAtomsSchema = z.record(z.string(), itemSchema)
+
+export const fixtureSchema = z
+  .object({
+    meta: fixtureMetaSchema.default({}),
+    atoms: fixtureAtomsSchema,
+  })
+  .strict()
 
 export type Fixture = z.infer<typeof fixtureSchema>
+export type FixtureAtoms = z.infer<typeof fixtureAtomsSchema>
 export type PrimitiveItem = z.infer<typeof primitiveSchema>
 export type DerivedItem = z.infer<typeof derivedSchema>
 
@@ -55,6 +79,21 @@ export const currentFixtureAtom = atomWithStorage<string | undefined>(
   undefined,
 )
 currentFixtureAtom.debugPrivate = true
+
+export const fixtureListAtom = atom(async () =>
+  Promise.all(
+    // eslint-disable-next-line no-map-spread
+    Object.entries(allFixtures).map(async ([path, loader]) => {
+      const fixture = await loader()
+      return {
+        path,
+        ...fixture.default.meta,
+      }
+    }),
+  ),
+)
+
+fixtureListAtom.debugPrivate = true
 
 const resolveExportValue = async (value: unknown) => {
   if (!(value instanceof Promise)) {
@@ -89,7 +128,7 @@ const getValue = (
 }
 
 const buildExport = async (snapshot: Snapshot) => {
-  const values: Fixture = {}
+  const values: FixtureAtoms = {}
   const pending: string[] = []
 
   for (const [key, value] of snapshot) {
@@ -126,7 +165,10 @@ const buildExport = async (snapshot: Snapshot) => {
 const exportFixture = async (snapshot: Snapshot) => {
   const { pending, values } = await buildExport(snapshot)
 
-  const result = devalue.uneval(values)
+  const result = devalue.uneval({
+    meta: {},
+    atoms: values,
+  } satisfies Fixture)
 
   await globalThis.navigator.clipboard.writeText(`export default ${result}`)
 
@@ -143,6 +185,7 @@ const exportFixture = async (snapshot: Snapshot) => {
 
 export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
   const setCurrent = useSetAtom(currentFixtureAtom)
+  const fixtureList = useAtomValue(fixtureListAtom)
 
   const snapshot = useAtomsSnapshot()
 
@@ -177,8 +220,8 @@ export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
           <CircleOffIcon />
           Disable fixture overrides
         </CommandItem>
-        {Object.keys(allFixtures).map(path => (
-          <FixtureItem key={path} path={path} onDone={onDone} />
+        {fixtureList.map(item => (
+          <FixtureItem key={item.path} {...item} onDone={onDone} />
         ))}
       </CommandGroup>
       <CommandSeparator />
@@ -188,12 +231,15 @@ export const FixturesCommand = ({ onDone }: { onDone?: () => void }) => {
 
 const FixtureItem = ({
   path,
+  name,
+  description,
   onDone,
 }: {
   path: string
   onDone?: () => void
 }) => {
   const [current, setCurrent] = useAtom(currentFixtureAtom)
+  const displayName = name || toName(path)
 
   return (
     <CommandItem
@@ -208,7 +254,14 @@ const FixtureItem = ({
       ) : (
         <CircleIcon className="text-muted-foreground" />
       )}
-      {`Apply fixture: ${toName(path)}`}
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate">{`Apply fixture: ${displayName}`}</span>
+        {description && (
+          <span className="truncate text-xs text-muted-foreground">
+            {description}
+          </span>
+        )}
+      </div>
     </CommandItem>
   )
 }

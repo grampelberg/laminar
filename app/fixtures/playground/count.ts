@@ -1,5 +1,8 @@
 export default {
-  countAtom: {
-    value: 78,
+  meta: {},
+  atoms: {
+    countAtom: {
+      value: 78,
+    },
   },
 }

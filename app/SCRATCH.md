@@ -15,6 +15,9 @@
   - Animate the border
   - Add an icon on the left when added
   - Allow filtering
+  - Add tests
+  - Add to detail view
+- Update tests to support the new schema
 - Fixtures
   - Add descriptions for what a fixture is supposed to show, include in the
     palette
