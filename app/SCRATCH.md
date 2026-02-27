@@ -11,8 +11,13 @@
   - There should probably be a reduction in logging for receiving messages.
     maybe move to trace from debug?
 
-- Add "annotations" that show when an event happened in the timeline, such as
-  "restarted process".
+- Markers
+  - Animate the border
+  - Add an icon on the left when added
+  - Allow filtering
+- Fixtures
+  - Add descriptions for what a fixture is supposed to show, include in the
+    palette
 - Make retention actually do something.
 - Register endpoints with a name.
 

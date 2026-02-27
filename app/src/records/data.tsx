@@ -6,11 +6,19 @@ import { dbAtom, queryBuilder, execute } from '@/db.tsx'
 import { filtersAtom } from '@/records/data/filter.ts'
 import type { Identity } from '@/types/db.ts'
 import { getLogger } from '@/utils.ts'
+
 import type { RecordRow } from './data/rows.ts'
 
-export { __test, positionAtom, stateAtom } from './data/rows.ts'
+export {
+  __test,
+  markerAtom,
+  type MarkerInput,
+  MarkerKind,
+  positionAtom,
+  stateAtom,
+  type RecordRow,
+} from './data/rows.ts'
 export { filtersAtom, type RecordFilter } from './data/filter.ts'
-export type { RecordRow } from './data/rows.ts'
 
 const logger = getLogger(import.meta.url)
 

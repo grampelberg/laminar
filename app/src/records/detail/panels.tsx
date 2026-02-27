@@ -83,8 +83,8 @@ export const JSONTab = ({ fields }: { fields: Record<string, unknown> }) => (
     <SyntaxHighlighter
       customStyle={{
         background: 'var(--background)',
-        borderRadius: '0.375rem',
-        fontSize: '0.75rem',
+        borderRadius: 'var(--radius-md)',
+        fontSize: 'var(--text-sm)',
         margin: 0,
         minWidth: 'max-content',
       }}

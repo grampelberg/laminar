@@ -1604,8 +1604,8 @@ export default (function (a) {
         address:
           'cd2abf5b6c164711cc89d9a402f601e9d5d80bb5ecf895cd78e045e5b2d5f99a',
         db: {
-          path: '/Users/thomas/Library/Application Support/dev.reasons.inspector/data/inspector.db',
-          url: 'sqlite:data/inspector.db',
+          path: 'laminar.db',
+          url: 'sqlite:data/laminar.db',
         },
       },
     },

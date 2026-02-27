@@ -8,9 +8,10 @@ import {
   unwrap,
 } from 'jotai/utils'
 import { type Selectable } from 'kysely'
+import { z } from 'zod'
 
 import { atomWithOwnedDefault } from '@/atom'
-import { dbAtom, execute } from '@/db.tsx'
+import { dbAtom, execute, queryBuilder } from '@/db.tsx'
 import { queryAtom, totalAtom } from '@/records/data.tsx'
 import { streamAtom } from '@/stream.tsx'
 import type { Records } from '@/types/db.ts'
@@ -187,3 +188,66 @@ export const refreshAtom = atom(undefined, (_get, set) => {
   set(cursorAtom, RESET)
   set(stateAtom, RESET)
 })
+
+export const refreshRowAtom = atom(undefined, async (get, set, id: number) => {
+  const db = await get(dbAtom)
+  const query = queryBuilder
+    .selectFrom('records')
+    .selectAll()
+    .where('id', '=', id)
+    .limit(1)
+    .compile()
+  const [next] = await execute<RecordRow>(db, query)
+
+  if (!next) {
+    return
+  }
+
+  set(stateAtom, async promise => {
+    const state = await promise
+    const idx = state.rows.findIndex(row => row.id === next.id)
+    if (idx === -1) {
+      return state
+    }
+
+    state.rows[idx] = next
+
+    return { ...state, rows: [...state.rows] }
+  })
+})
+
+export const MarkerKind = {
+  info: 0,
+  warning: 1,
+  error: 2,
+  success: 3,
+  note: 4,
+} as const
+
+const zMarkerKind = z.enum(MarkerKind)
+
+export type MarkerKind = z.infer<typeof zMarkerKind>
+
+export interface MarkerInput {
+  id: number
+  kind?: MarkerKind | null
+  note?: string
+}
+
+export const markerAtom = atom(
+  undefined,
+  async (get, set, { id, kind, note }: MarkerInput) => {
+    const db = await get(dbAtom)
+    const query = queryBuilder
+      .updateTable('records')
+      .set({
+        ...(kind !== undefined && { marker_kind: kind }),
+        ...(note !== undefined && { marker_note: note }),
+      })
+      .where('id', '=', id)
+      .compile()
+
+    await db.execute(query.sql, [...query.parameters])
+    set(refreshRowAtom, id)
+  },
+)
