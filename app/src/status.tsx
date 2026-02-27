@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { millisecondsInSecond } from 'date-fns/constants'
 import { filesize } from 'filesize'
 import { useAnimationFrame } from 'framer-motion'
-import { Provider, useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { VisuallyHidden } from 'radix-ui'
 import { useEffect, useRef } from 'react'
 import uPlot from 'uplot'
@@ -181,7 +181,9 @@ const getPos = (plot: uPlot) => {
   }
 }
 
-const Ingest = ({ total }: { total: number }) => {
+const Ingest = () => {
+  const total = useAtomValue(totalRowsAtom)
+
   const { points, stats } = useAtomValue(ingestAtom)
   const data = useIngestData(points)
 
@@ -313,11 +315,6 @@ export const Status = () => {
   const { rows: allClients, total: totalSessions } = useAtomValue(sessionsAtom)
   const status = totalSessions > 0 ? 'connected' : 'none'
 
-  // Keep totalRows outside of the <Ingest /> provider so that it can be updated
-  // via `statusUpdateAtom`. If it goes inside the provider, there's no
-  // `statusUpdateAtom` in there and so it stops updating.
-  const totalRows = useAtomValue(totalRowsAtom)
-
   return (
     <Sheet
       open={isOpen}
@@ -353,13 +350,7 @@ export const Status = () => {
         <div className="px-4 pb-4">
           <Sessions rows={allClients} total={totalSessions} />
 
-          {/*
-            This provider is important so that the ingestAtom resets on unmount. Otherwise,
-            you'll have a flash of the stale data on re-mount that results in the chart being jerky.
-          */}
-          <Provider>
-            <Ingest total={totalRows} />
-          </Provider>
+          <Ingest />
           <Storage />
         </div>
       </SheetContent>

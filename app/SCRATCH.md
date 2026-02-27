@@ -18,11 +18,6 @@
 
 ## Bugs
 
-- Ingest plot
-  - When going away from and back to the plot, there's a line drawn across the
-    entire plot until it updates.
-  - When opening the plot the first time, the point on the left bounces because
-    there's an issue with the window size.
 - There's something weird about endpoints and reconnecting if you've failed in
   the past. I had the app crash on an endpoint and then, even after restarts,
   loadgen refused to connect to that endpoint. I made a new key and, voila, it

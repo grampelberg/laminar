@@ -1,9 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { atomEffect } from 'jotai-effect'
-import { atomWithRefresh, unwrap } from 'jotai/utils'
+import { atomWithRefresh, unwrap, RESET } from 'jotai/utils'
 import { sql } from 'kysely'
 
-import { atomWithPeriodicRefresh } from '@/atom'
+import { atomWithPeriodicRefresh, resettable } from '@/atom'
 import { dbAtom, execute, queryBuilder } from '@/db'
 import { streamAtom } from '@/stream.tsx'
 import { getLogger } from '@/utils'
@@ -61,17 +61,26 @@ export const statusAtom = unwrap(
 )
 statusAtom.debugLabel = 'statusAtom'
 
-export const ingestAtom = unwrap(
-  atomWithPeriodicRefresh(async () => {
-    try {
-      return await invoke<IngestSeries>('get_series')
-    } catch {
-      return EMPTY_INGEST
-    }
-  }, INGEST_REFRESH_MS),
-  prev => prev ?? EMPTY_INGEST,
+export const ingestAtom = resettable(
+  unwrap(
+    atomWithPeriodicRefresh(async () => {
+      try {
+        return await invoke<IngestSeries>('get_series')
+      } catch {
+        return EMPTY_INGEST
+      }
+    }, INGEST_REFRESH_MS),
+    prev => prev ?? EMPTY_INGEST,
+  ),
+  EMPTY_INGEST,
 )
 ingestAtom.debugLabel = 'ingestAtom'
+
+// It is important that ingest is reset on unmount. without this, the next time
+// it is loaded, the old data shows up. That old data is guaranteed to be stale
+// and will force the plot to jump around. This ensures that it simply fetches
+// new data each time.
+ingestAtom.onMount = set => () => set(RESET)
 
 export const sessionsAtom = atomWithRefresh(async get => {
   const db = await get(dbAtom)
