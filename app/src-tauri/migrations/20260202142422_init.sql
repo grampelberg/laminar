@@ -29,9 +29,13 @@ CREATE TABLE records (
   level         INTEGER,
   message       TEXT    NOT NULL,
 
+  marker_kind   INTEGER,
+  marker_note   TEXT,
+
   fields_json   TEXT    NOT NULL,
 
   CHECK(kind IN (0,1))
+  CHECK(marker_kind IS NULL OR marker_kind IN (0,1,2,3,4))
   CHECK(kind != 1 OR span_id IS NOT NULL)
 );
 

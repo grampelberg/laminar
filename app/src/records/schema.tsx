@@ -1,18 +1,38 @@
 import { createColumnHelper } from '@tanstack/react-table'
-import type { ReactNode } from 'react'
+import { type ReactNode } from 'react'
 
 import { levelName, LevelBadge } from '@/components/level-badge'
 import { Message } from '@/components/message'
 import { Source } from '@/components/source'
 import { Timestamp } from '@/components/timestamp'
-import type { RecordFilter, RecordRow } from '@/records/data'
+import {
+  type MarkerKind,
+  type RecordFilter,
+  type RecordRow,
+} from '@/records/data'
 
 import { FilterCell } from './filter-cell'
+import { MarkerControl } from './marker'
 
 interface RecordsColumnMeta {
   cellClassName?: string
   filterLabel?: (value: unknown) => ReactNode
 }
+
+const MessageCell = ({
+  rowId,
+  text,
+  markerKind,
+}: {
+  rowId: number
+  text: string
+  markerKind?: MarkerKind
+}) => (
+  <div className="group relative">
+    <Message text={text} variant="table" />
+    <MarkerControl rowId={rowId} markerKind={markerKind} />
+  </div>
+)
 
 const columnHelper = createColumnHelper<RecordRow>()
 
@@ -67,7 +87,13 @@ export const recordsSchema = [
     size: 200,
   }),
   columnHelper.accessor('message', {
-    cell: ctx => <Message text={ctx.getValue()} variant="table" />,
+    cell: ctx => (
+      <MessageCell
+        rowId={ctx.row.original.id}
+        text={ctx.getValue()}
+        markerKind={(ctx.row.original.marker_kind as MarkerKind) ?? undefined}
+      />
+    ),
     header: 'Message',
     meta: {
       cellClassName: 'overflow-hidden',

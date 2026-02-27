@@ -24,6 +24,7 @@ import {
   loadMoreAtom,
   streamUpdateAtom,
 } from './data/rows.ts'
+import { MARKERS } from './marker.tsx'
 
 const logger = getLogger(import.meta.url)
 
@@ -68,6 +69,9 @@ export const RecordsTable = () => {
   const rowProps = (row: TRow<RecordRow>) => {
     let active = false
 
+    const markerStyle =
+      row.original.marker_kind !== null && MARKERS.at(row.original.marker_kind)
+
     let elapsed = 0
     if (row.original._added) {
       elapsed = Date.now() - row.original._added
@@ -78,13 +82,19 @@ export const RecordsTable = () => {
       className: cn(
         '[&>td>*]:animate-fade-in',
         active && 'flash-border-left flash-row',
+        markerStyle && 'marker-border-left marker-row',
       ),
-      style: active
-        ? ({
+      style: {
+        ...(active &&
+          ({
             '--flash-duration': `${FLASH_DURATION}ms`,
             '--flash-delay': `${-elapsed}ms`,
-          } as CSSProperties)
-        : undefined,
+          } as CSSProperties)),
+        ...(markerStyle &&
+          ({
+            '--marker-color': markerStyle.color,
+          } as CSSProperties)),
+      },
       'data-state': selected?.id === row.original.id ? 'selected' : undefined,
       onClick: () => setSelected(row.original),
     }

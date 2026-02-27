@@ -34,6 +34,8 @@ export interface Records {
   identity_pk: number;
   kind: number;
   level: number | null;
+  marker_kind: number | null;
+  marker_note: string | null;
   message: string;
   parent_id: number | null;
   received_ms: number;
