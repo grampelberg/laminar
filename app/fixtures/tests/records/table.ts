@@ -1,6 +1,8 @@
 export default {
-  stateAtom: {
-    value: {
+  meta: {},
+  atoms: {
+    stateAtom: {
+      value: {
       rows: [
         {
           message: 'gar',
@@ -11491,6 +11493,7 @@ export default {
         id: 4454,
         tsMs: 1771008489274,
       },
+    },
     },
   },
 }

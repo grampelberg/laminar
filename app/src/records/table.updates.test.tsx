@@ -13,6 +13,13 @@ import { __test as streamTest } from '@/stream.tsx'
 import { nextTick, parseTime, getCalls, INVOKE_SELECT } from '@/tests'
 import state from '~/fixtures/tests/records/table.ts'
 
+const {
+  atoms: {
+    stateAtom: {
+      value: { rows: fixtureRows },
+    },
+  },
+} = state
 const { ROWS_CHUNK_SIZE } = dataTest
 const { EVENT_RECEIVED } = streamTest
 
@@ -29,8 +36,8 @@ describe('RecordsTable', () => {
         queryFixture([
           // These are setup to return a page of old results and then a newer set (as
           // per ordering) with overlap to verify that some have _added correctly.
-          state.stateAtom.value.rows.slice(middle, ROWS_CHUNK_SIZE + 1),
-          state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE - 1),
+          fixtureRows.slice(middle, ROWS_CHUNK_SIZE + 1),
+          fixtureRows.slice(0, ROWS_CHUNK_SIZE - 1),
         ]),
       )
 
@@ -72,7 +79,7 @@ describe('RecordsTable', () => {
 
     it('only updates at the top', async () => {
       const { store, screen, spy } = await renderTable(() =>
-        state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE + 1),
+        fixtureRows.slice(0, ROWS_CHUNK_SIZE + 1),
       )
 
       const scroll = scrollTo(screen)
@@ -103,9 +110,9 @@ describe('RecordsTable', () => {
 
       const { store, screen } = await renderTable(
         queryFixture([
-          state.stateAtom.value.rows.slice(middle, ROWS_CHUNK_SIZE + 1),
-          state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE - 1),
-          state.stateAtom.value.rows.slice(0, ROWS_CHUNK_SIZE - 1),
+          fixtureRows.slice(middle, ROWS_CHUNK_SIZE + 1),
+          fixtureRows.slice(0, ROWS_CHUNK_SIZE - 1),
+          fixtureRows.slice(0, ROWS_CHUNK_SIZE - 1),
         ]),
       )
 

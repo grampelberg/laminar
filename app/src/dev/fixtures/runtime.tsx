@@ -9,7 +9,7 @@ import {
   currentFixtureAtom,
   fixtureSchema,
   toName,
-  type Fixture,
+  type FixtureAtoms,
   type PrimitiveItem,
 } from '@/dev/fixtures.tsx'
 import { getLogger } from '@/utils.ts'
@@ -39,7 +39,7 @@ const loadFixture = async (path: string) => {
     throw parsedFixture.error
   }
 
-  return parsedFixture.data
+  return parsedFixture.data.atoms
 }
 
 function primitiveRead(this: AtomConfig, get: Getter) {
@@ -71,7 +71,7 @@ const applySnapshot = (
     dependents: Map<Atom<unknown>, Set<Atom<unknown>>>
   }) => void,
   atoms: Iterable<Atom<unknown>>,
-  fixture: Fixture,
+  fixture: FixtureAtoms,
 ) => {
   const appliedLabels = new Set<string>()
 
@@ -118,7 +118,7 @@ export const FixtureRuntime = () => {
 }
 
 const ApplySelectedFixture = ({ path }: { path: string }) => {
-  const [fixture, setFixture] = useState<Fixture>({})
+  const [fixture, setFixture] = useState<FixtureAtoms>({})
   const snapshot = useAtomsSnapshot()
   const setSnapshot = useGotoAtomsSnapshot()
 
