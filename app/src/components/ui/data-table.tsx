@@ -7,22 +7,9 @@ import {
   type RowData,
 } from '@tanstack/react-table'
 import {
-  type ReactVirtualizerOptions,
   type Virtualizer,
-  useVirtualizer,
 } from '@tanstack/react-virtual'
-import {
-  type CSSProperties,
-  type ForwardedRef,
-  type ReactElement,
-  createContext,
-  forwardRef,
-  useEffect,
-  useContext,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from 'react'
+import { type CSSProperties, type ReactElement, createContext, useContext, useMemo } from 'react'
 
 import {
   Table,
@@ -33,13 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table.tsx'
 import { cn, px, memo } from '@/lib/utils.ts'
-import { getLogger } from '@/utils.ts'
 
-import { ScrollArea } from './scroll-area'
-
-const logger = getLogger(import.meta.url)
-
-const DEFAULT_ROW_HEIGHT = 40
 const LOADING_DELAY_STEP_MS = 40
 
 interface ColumnMeta {
@@ -50,10 +31,6 @@ interface ColumnMeta {
 export interface Viewport {
   top: boolean
   bottom: boolean
-}
-
-export interface DataTableHandle {
-  scrollToTop: () => void
 }
 
 type RowPropsHook<Data extends RowData> = (
@@ -69,19 +46,21 @@ const Loading = <Data extends RowData>({
 }) =>
   Array.from({ length: rowCount }).map((_, index) => (
     <TableRow className="h-10" key={`loading-${index}`}>
-      {columns.map((column: ReturnType<TTable<Data>['getVisibleLeafColumns']>[number]) => {
-        const meta = (column.columnDef.meta || {}) as ColumnMeta
-        return (
-          <UITableCell className={meta.cellClassName} key={column.id}>
-            <div
-              className="h-3 w-full animate-pulse rounded-sm bg-muted/70"
-              style={{
-                animationDelay: `${index * LOADING_DELAY_STEP_MS}ms`,
-              }}
-            />
-          </UITableCell>
-        )
-      })}
+      {columns.map(
+        (column: ReturnType<TTable<Data>['getVisibleLeafColumns']>[number]) => {
+          const meta = (column.columnDef.meta || {}) as ColumnMeta
+          return (
+            <UITableCell className={meta.cellClassName} key={column.id}>
+              <div
+                className="h-3 w-full animate-pulse rounded-sm bg-muted/70"
+                style={{
+                  animationDelay: `${index * LOADING_DELAY_STEP_MS}ms`,
+                }}
+              />
+            </UITableCell>
+          )
+        },
+      )}
     </TableRow>
   ))
 
@@ -193,7 +172,7 @@ const MemoBody = memo(
   props: BodyProps<Data> & { viewport: string },
 ) => ReactElement
 
-const getPosition = (virtual: Virtualizer<HTMLDivElement, Element>) => {
+const getLayout = (virtual: Virtualizer<HTMLDivElement, Element>) => {
   const items = virtual.getVirtualItems()
   const first = items[0]?.index ?? 0
   const last = items.at(-1)?.index ?? 0
@@ -203,12 +182,6 @@ const getPosition = (virtual: Virtualizer<HTMLDivElement, Element>) => {
       top: items[0]?.start ?? 0,
       bottom: virtual.getTotalSize() - (items.at(-1)?.end ?? 0),
     },
-    position: {
-      top:
-        (virtual.scrollOffset || 0) - virtual.options.estimateSize(first) <= 0,
-      bottom: last >= virtual.options.count - virtual.options.overscan - 1,
-    },
-    offset: virtual.scrollOffset,
     key: `${first}:${last}:${items.length}`,
   }
 }
@@ -219,30 +192,17 @@ export interface DataTableProps<Data extends RowData> {
   loading?: boolean
   loadingRowCount?: number
   getRowProps?: RowPropsHook<Data>
-  virtualOpts?: Partial<ReactVirtualizerOptions<HTMLDivElement, Element>>
-  onScroll: (viewport: Viewport) => void
+  virtual: Virtualizer<HTMLDivElement, Element>
 }
 
-const DataTableInner = <Data extends RowData>(
-  {
-    table,
-    fullWidth = false,
-    loading = false,
-    loadingRowCount = 12,
-    getRowProps,
-    virtualOpts,
-    onScroll,
-  }: DataTableProps<Data>,
-  ref: ForwardedRef<DataTableHandle>,
-) => {
-  const viewportRef = useRef<HTMLDivElement>(null)
-
-  useImperativeHandle(ref, () => ({
-    scrollToTop: () => {
-      viewportRef.current?.scrollTo({ top: 0 })
-    },
-  }))
-
+export const DataTable = <Data extends RowData>({
+  table,
+  fullWidth = false,
+  loading = false,
+  loadingRowCount = 12,
+  getRowProps,
+  virtual,
+}: DataTableProps<Data>) => {
   const columnSizeVars = useMemo(() => {
     const lastId = table.getVisibleLeafColumns().at(-1)?.id
 
@@ -258,22 +218,10 @@ const DataTableInner = <Data extends RowData>(
 
   const { rows } = table.getRowModel()
 
-  const virt = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => viewportRef.current,
-    estimateSize: () => DEFAULT_ROW_HEIGHT,
-    overscan: 10,
-    ...virtualOpts,
-  })
-
-  const { spacer, position, key } = getPosition(virt)
+  const { spacer, key } = getLayout(virtual)
   const isResizingColumn = Boolean(
     table.getState().columnSizingInfo.isResizingColumn,
   )
-
-  useEffect(() => {
-    onScroll(position)
-  }, [onScroll, position.top, position.bottom])
 
   const columnCount = table.getVisibleLeafColumns().length
   const columns = table.getVisibleLeafColumns()
@@ -285,60 +233,50 @@ const DataTableInner = <Data extends RowData>(
         isResizingColumn && 'cursor-col-resize select-none',
       )}
     >
-      <ScrollArea ref={viewportRef}>
-        <Table
-          className={cn('table-fixed', fullWidth && 'w-full')}
-          style={{
-            ...columnSizeVars,
-            ...(!fullWidth && { width: table.getTotalSize() }),
-          }}
-        >
-          <TableHeader className="sticky top-0 z-10 border-b border-border bg-card/50 backdrop-blur-md">
-            {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                {headerGroup.headers.map(header => (
-                  <HCell key={header.id} node={header} />
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {spacer.top > 0 && (
-              <tr>
-                <td colSpan={columnCount} style={{ height: spacer.top }} />
-              </tr>
-            )}
-            {loading && (
-              <Loading columns={columns} rowCount={loadingRowCount} />
-            )}
-            {!loading && rows.length === 0 && <Empty colSpan={columnCount} />}
-            {rows.length > 0 && (
-              <RowPropsContext.Provider
-                value={getRowProps as RowPropsHook<unknown> | undefined}
-              >
-                <MemoBody
-                  {...{
-                    rows,
-                    virtualizer: virt,
-                    viewport: key,
-                  }}
-                />
-              </RowPropsContext.Provider>
-            )}
-            {spacer.bottom > 0 && (
-              <tr>
-                <td colSpan={columnCount} style={{ height: spacer.bottom }} />
-              </tr>
-            )}
-          </TableBody>
-        </Table>
-      </ScrollArea>
+      <Table
+        className={cn('table-fixed', fullWidth && 'w-full')}
+        style={{
+          ...columnSizeVars,
+          ...(!fullWidth && { width: table.getTotalSize() }),
+        }}
+      >
+        <TableHeader className="sticky top-0 z-30 border-b border-border bg-card/50 backdrop-blur-md">
+          {table.getHeaderGroups().map(headerGroup => (
+            <TableRow key={headerGroup.id} className="hover:bg-transparent">
+              {headerGroup.headers.map(header => (
+                <HCell key={header.id} node={header} />
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {spacer.top > 0 && (
+            <tr>
+              <td colSpan={columnCount} style={{ height: spacer.top }} />
+            </tr>
+          )}
+          {loading && <Loading columns={columns} rowCount={loadingRowCount} />}
+          {!loading && rows.length === 0 && <Empty colSpan={columnCount} />}
+          {rows.length > 0 && (
+            <RowPropsContext.Provider
+              value={getRowProps as RowPropsHook<unknown> | undefined}
+            >
+              <MemoBody
+                {...{
+                  rows,
+                  virtualizer: virtual,
+                  viewport: key,
+                }}
+              />
+            </RowPropsContext.Provider>
+          )}
+          {spacer.bottom > 0 && (
+            <tr>
+              <td colSpan={columnCount} style={{ height: spacer.bottom }} />
+            </tr>
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }
-
-type DataTableComponent = <Data extends RowData>(
-  props: DataTableProps<Data> & { ref?: ForwardedRef<DataTableHandle> },
-) => ReactElement
-
-export const DataTable = forwardRef(DataTableInner) as DataTableComponent

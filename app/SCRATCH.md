@@ -11,18 +11,19 @@
   - There should probably be a reduction in logging for receiving messages.
     maybe move to trace from debug?
 
+- Filter labels - I'm naively taking the text and putting it into the label. For
+  some filters, this works okay (source). For others, it needs a little
+  translation but it still works (level). For markers, it breaks a little bit
+  more. Having `Warning` as a label works for now but it is tough to know what
+  it actually means. Should they be `Column: Warning`?
+
+- Move filter de-duplication logic into the atom.
 - Markers
-  - Animate the border
-  - Add an icon on the left when added
-  - Allow filtering
   - Add tests
-  - Add to detail view
 - Update tests to support the new schema
-- Fixtures
-  - Add descriptions for what a fixture is supposed to show, include in the
-    palette
 - Make retention actually do something.
 - Register endpoints with a name.
+- Add routing for detail view.
 
 ## Bugs
 

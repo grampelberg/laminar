@@ -11,7 +11,6 @@ import {
 import { useAtomsSnapshot } from 'jotai-devtools'
 import { atomWithStorage } from 'jotai/utils'
 import { CheckIcon, CircleIcon, CircleOffIcon, CopyIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -236,6 +235,8 @@ const FixtureItem = ({
   onDone,
 }: {
   path: string
+  name?: string
+  description?: string
   onDone?: () => void
 }) => {
   const [current, setCurrent] = useAtom(currentFixtureAtom)
