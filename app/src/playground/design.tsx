@@ -7,6 +7,7 @@ import { RecordsTable } from '@/records/table.tsx'
 
 import { LinkedAtoms } from './atoms'
 import { Layout } from './layout'
+import { Overflow } from './overflow'
 
 export const DesignPlayground = () => (
   <>
@@ -33,6 +34,9 @@ export const DesignPlayground = () => (
     </Route>
     <Route path="/layout">
       <Layout />
+    </Route>
+    <Route path="/overflow">
+      <Overflow />
     </Route>
   </>
 )

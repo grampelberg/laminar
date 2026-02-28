@@ -20,6 +20,7 @@ import type { Identity } from '@/types/db.ts'
 
 import type { RecordRow } from './data.tsx'
 import { FieldTable, JSONTab, MetaTab } from './detail/panels'
+import { MARKERS } from './marker.tsx'
 
 const SWIPE_DURATION = 0.2
 const SWIPE_OFFSET = 50
@@ -119,6 +120,8 @@ export const RecordDetail = ({
   const [tab, setTab] = useState('fields')
   const fields = useMemo(() => JSON.parse(row.fields_json || '{}'), [row])
   const flattenedFields = useMemo(() => flattenFields(fields), [fields])
+  const marker =
+    typeof row.marker_kind === 'number' && MARKERS.at(row.marker_kind)
 
   const { element, direction } = useDirection(
     tab,
@@ -158,6 +161,12 @@ export const RecordDetail = ({
         value={tab}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background">
+          {marker && (
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 w-1"
+              style={{ backgroundColor: marker.color }}
+            ></div>
+          )}
           <TabsList variant="line">
             <TabsTrigger className="after:hidden" value="fields">
               Fields

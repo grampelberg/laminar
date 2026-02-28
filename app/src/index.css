@@ -207,35 +207,6 @@
   }
 }
 
-@utility marker-border {
-  position: relative;
-
-  &::before {
-    content: '';
-    position: absolute;
-    pointer-events: none;
-    background: var(--marker-color, var(--color-emerald-500));
-
-    inset-inline-start: var(--marker-left, auto);
-    inset-inline-end: var(--marker-right, auto);
-    inset-block-start: var(--marker-top, auto);
-    inset-block-end: var(--marker-bottom, auto);
-    width: var(--marker-w, auto);
-    height: var(--marker-h, auto);
-  }
-}
-
-tr.marker-row > td:first-child {
-  @apply marker-border;
-}
-
-.marker-border-left {
-  --marker-left: 0;
-  --marker-top: 0;
-  --marker-bottom: 0;
-  --marker-w: 5px;
-}
-
 @utility flash-border {
   position: relative;
 

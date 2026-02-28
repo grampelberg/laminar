@@ -23,7 +23,7 @@ export const FilterCell = ({
   }
 
   const slotProps: ComponentProps<typeof Slot> = {
-    className: cn('cursor-pointer '),
+    className: cn('cursor-pointer'),
     onClick: addFilter,
     title: `Filter by ${String(filter.column)}`,
   }
