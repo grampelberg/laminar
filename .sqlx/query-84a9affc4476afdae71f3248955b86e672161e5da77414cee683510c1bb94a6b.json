@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO records (\n              identity_pk,\n              kind,\n              ts_ms,\n              received_ms,\n              span_id,\n              parent_id,\n              source,\n              level,\n              message,\n              fields_json\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "84a9affc4476afdae71f3248955b86e672161e5da77414cee683510c1bb94a6b"
+}

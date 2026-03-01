@@ -1,7 +1,9 @@
 mod config;
+mod db;
 mod debounce;
 mod error;
 mod record;
+mod retention;
 mod series;
 mod stream;
 
@@ -24,6 +26,7 @@ use tracing_subscriber::{filter::EnvFilter, prelude::*};
 
 use crate::{
     config::{get_config, set_config},
+    retention::RetentionTask,
     series::{MESSAGE_SERIES_CAPACITY, MESSAGE_SERIES_INTERVAL, get_series},
     stream::{MESSAGE_RECEIVED, RecordStream},
 };
@@ -242,13 +245,17 @@ pub fn run() {
 
             tracing::info!(path = ?db.path.to_string_lossy(), "db_path");
 
-            RecordStream::builder()
+            let retention = RetentionTask::new(app.handle().clone());
+            db::spawn(db.path.clone(), |pool| async move {
+                retention.run(pool).await
+            });
+
+            let stream = RecordStream::builder()
                 .config(reader_config)
-                .db_path(db.path)
                 .handle(app.handle().clone())
                 .key(key)
-                .build()
-                .spawn();
+                .build();
+            db::spawn(db.path, |pool| async move { stream.run(pool).await });
 
             Ok(())
         })

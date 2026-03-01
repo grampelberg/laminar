@@ -13,12 +13,10 @@ export const FilterCell = ({
   filter: RecordFilter
 }) => {
   const setFilters = useSetAtom(filtersAtom)
-  const matchesFilter = (current: RecordFilter) =>
-    current.column === filter.column && Object.is(current.value, filter.value)
 
   const addFilter = (event: MouseEvent) => {
     event.stopPropagation()
-    setFilters(current => [...current.filter(i => !matchesFilter(i)), filter])
+    setFilters(filter)
   }
 
   const valueLabel =

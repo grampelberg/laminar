@@ -1,6 +1,6 @@
 use std::pin::Pin;
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use tokio::time::{Duration, Sleep};
 
 #[derive(bon::Builder)]

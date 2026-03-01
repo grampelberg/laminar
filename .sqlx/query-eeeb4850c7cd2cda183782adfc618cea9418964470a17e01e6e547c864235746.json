@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO sessions (\n          session_id,\n          identity_pk,\n          connected_at,\n          last_seen_at,\n          disconnected_at,\n          reason\n        )\n        VALUES (?, ?, ?, ?, ?, ?)\n        ON CONFLICT(session_id) DO UPDATE SET\n          last_seen_at = excluded.last_seen_at,\n          disconnected_at = excluded.disconnected_at,\n          reason = excluded.reason\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "eeeb4850c7cd2cda183782adfc618cea9418964470a17e01e6e547c864235746"
+}

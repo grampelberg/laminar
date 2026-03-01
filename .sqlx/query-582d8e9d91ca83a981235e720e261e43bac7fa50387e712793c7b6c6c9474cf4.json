@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                DELETE FROM records\n                WHERE id IN (\n                    SELECT id\n                    FROM records\n                    WHERE ts_ms < ?\n                    ORDER BY ts_ms ASC\n                )\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "582d8e9d91ca83a981235e720e261e43bac7fa50387e712793c7b6c6c9474cf4"
+}

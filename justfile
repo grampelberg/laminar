@@ -7,9 +7,17 @@ cli cmd:
     cd cli && cargo run -- {{ cmd }}
 
 check:
-    cargo clippy
-    cargo check
+    cargo clippy --all-targets
+    cargo check --all-targets
     cd app && just check
+
+db-prepare:
+    #!/usr/bin/env bash
+    export DATABASE_URL=sqlite:///tmp/dev.db
+    cd app/src-tauri/
+    cargo sqlx database create
+    cargo sqlx migrate run
+    cargo sqlx prepare --workspace
 
 prune-local-branches dry_run="true":
     #!/usr/bin/env bash

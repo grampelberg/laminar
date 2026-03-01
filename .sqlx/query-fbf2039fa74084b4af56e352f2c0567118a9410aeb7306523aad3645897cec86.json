@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE sessions\n        SET disconnected_at = last_seen_at,\n            reason = ?\n        WHERE disconnected_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "fbf2039fa74084b4af56e352f2c0567118a9410aeb7306523aad3645897cec86"
+}

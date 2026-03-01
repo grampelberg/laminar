@@ -9,6 +9,9 @@ export interface RecordFilter {
   value: unknown
 }
 
+const isSameFilter = (left: RecordFilter, right: RecordFilter) =>
+  left.column === right.column && Object.is(left.value, right.value)
+
 // This must have `getOnInit` set to true, otherwise the initial value is used
 // and then onMount the actual value is set. This causes things like pageAtom()
 // to re-evaluate.
@@ -25,14 +28,20 @@ rawFiltersAtom.debugPrivate = true
 
 export const filtersAtom = atom(
   get => get(rawFiltersAtom),
-  (
-    get,
-    set,
-    update: RecordFilter[] | ((current: RecordFilter[]) => RecordFilter[]),
-  ) => {
-    const next =
-      typeof update === 'function' ? update(get(rawFiltersAtom)) : update
-    set(rawFiltersAtom, next)
+  (get, set, next: RecordFilter) => {
+    const current = get(rawFiltersAtom)
+    set(rawFiltersAtom, [...current.filter(item => !isSameFilter(item, next)), next])
+    set(refreshAtom)
+  },
+)
+
+export const removeFilterAtAtom = atom(
+  undefined,
+  (get, set, index: number) => {
+    set(
+      rawFiltersAtom,
+      get(rawFiltersAtom).filter((_, itemIndex) => itemIndex !== index),
+    )
     set(refreshAtom)
   },
 )

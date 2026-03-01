@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT OR IGNORE INTO identity (writer_id, display_name, pid, process_name, hostname, start_ms)\n                VALUES (?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "7daa4a8e68c020d347f01e155506114b923b71e4e7bc000f14fdeb0d97a800bf"
+}
