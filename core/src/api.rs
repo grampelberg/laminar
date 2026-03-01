@@ -1,6 +1,9 @@
 mod record;
 
-use std::{str::FromStr, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use iroh::PublicKey;
 #[cfg(target_os = "macos")]
@@ -102,14 +105,15 @@ impl Default for SourceProcess {
     fn default() -> Self {
         let pid = std::process::id();
 
-        let name = std::env::current_exe()
-            .map_or_else(|_| "unknown".to_string(), |p| {
-                p.file_name()
-                    .map_or_else(
-                        || "unknown".to_string(),
-                        |name| name.to_string_lossy().into_owned(),
-                    )
-            });
+        let name = std::env::current_exe().map_or_else(
+            |_| "unknown".to_string(),
+            |p| {
+                p.file_name().map_or_else(
+                    || "unknown".to_string(),
+                    |name| name.to_string_lossy().into_owned(),
+                )
+            },
+        );
         let start = u64::try_from(now()).unwrap_or_default();
 
         Self { pid, name, start }

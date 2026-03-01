@@ -1,11 +1,11 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use blackbox_metrics::{
-    sampler::{CounterStats, SamplePoint, Series},
     CounterValue, KeyExt,
+    sampler::{CounterStats, SamplePoint, Series},
 };
 
-use crate::{error, stream::MESSAGE_RECEIVED, AppData};
+use crate::{AppData, error, stream::MESSAGE_RECEIVED};
 
 pub(crate) const MESSAGE_SERIES_CAPACITY: usize = 120;
 pub(crate) const MESSAGE_SERIES_INTERVAL: Duration = Duration::from_secs(1);

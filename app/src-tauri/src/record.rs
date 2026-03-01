@@ -2,22 +2,210 @@ use laminar_stream::{
     Claims, Record,
     sink::{DisconnectReason, Identity, ResponseEvent},
 };
-use sqlx::{Pool, Row, Sqlite};
+use sqlx::{Pool, Sqlite};
 
 pub trait WithSql {
     async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()>;
 }
 
+struct InsertRecordParams<'a> {
+    identity_pk: i64,
+    kind: i64,
+    ts_ms: i64,
+    received_ms: i64,
+    span_id: Option<i64>,
+    parent_id: Option<i64>,
+    source: Option<&'a str>,
+    level: Option<i64>,
+    message: &'a str,
+    fields_json: &'a str,
+}
+
+impl<'a> InsertRecordParams<'a> {
+    fn from_record(
+        identity_pk: i64,
+        received_ms: i64,
+        body: &'a Record,
+    ) -> Self {
+        Self {
+            identity_pk,
+            kind: body.kind.clone() as i64,
+            ts_ms: body.timestamp,
+            received_ms,
+            span_id: body
+                .trace
+                .as_ref()
+                .and_then(|trace| trace.span)
+                .map(|value| value as i64),
+            parent_id: body
+                .trace
+                .as_ref()
+                .and_then(|trace| trace.parent)
+                .map(|value| value as i64),
+            source: body.source.as_deref(),
+            level: body.level.clone().map(|current| current as i64),
+            message: body.message.as_str(),
+            fields_json: body.fields.as_str(),
+        }
+    }
+
+    async fn execute(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO records (
+              identity_pk,
+              kind,
+              ts_ms,
+              received_ms,
+              span_id,
+              parent_id,
+              source,
+              level,
+              message,
+              fields_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+            self.identity_pk,
+            self.kind,
+            self.ts_ms,
+            self.received_ms,
+            self.span_id,
+            self.parent_id,
+            self.source,
+            self.level,
+            self.message,
+            self.fields_json,
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
+}
+
+struct IdentityInsertParams<'a> {
+    writer_id: &'a str,
+    display_name: Option<&'a str>,
+    pid: Option<i64>,
+    process_name: Option<&'a str>,
+    hostname: &'a str,
+    start_ms: Option<i64>,
+}
+
+impl<'a> IdentityInsertParams<'a> {
+    fn from_identity(
+        writer_id: &'a str,
+        identity: &'a Identity<Claims>,
+    ) -> Self {
+        Self {
+            writer_id,
+            display_name: identity.assertion.display_name.as_deref(),
+            pid: identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.pid as i64),
+            process_name: identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.name.as_str()),
+            hostname: identity.assertion.hostname.as_str(),
+            start_ms: identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.start as i64),
+        }
+    }
+
+    async fn execute(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+                INSERT OR IGNORE INTO identity (writer_id, display_name, pid, process_name, hostname, start_ms)
+                VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+            self.writer_id,
+            self.display_name,
+            self.pid,
+            self.process_name,
+            self.hostname,
+            self.start_ms,
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
+}
+
+struct IdentitySelectParams<'a> {
+    writer_id: &'a str,
+    pid: Option<i64>,
+    process_name: Option<&'a str>,
+    hostname: &'a str,
+    start_ms: Option<i64>,
+}
+
+impl<'a> IdentitySelectParams<'a> {
+    fn from_identity(
+        writer_id: &'a str,
+        identity: &'a Identity<Claims>,
+    ) -> Self {
+        Self {
+            writer_id,
+            pid: identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.pid as i64),
+            process_name: identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.name.as_str()),
+            hostname: identity.assertion.hostname.as_str(),
+            start_ms: identity
+                .assertion
+                .source
+                .as_ref()
+                .map(|source| source.start as i64),
+        }
+    }
+
+    async fn identity_pk(&self, pool: &Pool<Sqlite>) -> sqlx::Result<i64> {
+        sqlx::query_scalar!(
+            r#"
+            SELECT pk
+            FROM identity
+            WHERE writer_id = ?
+              AND pid IS ?
+              AND process_name IS ?
+              AND hostname = ?
+              AND start_ms IS ?
+            "#,
+            self.writer_id,
+            self.pid,
+            self.process_name,
+            self.hostname,
+            self.start_ms,
+        )
+        .fetch_one(pool)
+        .await
+    }
+}
+
 pub async fn close_open_sessions(pool: &Pool<Sqlite>) -> sqlx::Result<u64> {
-    let result = sqlx::query(
+    let result = sqlx::query!(
         r#"
         UPDATE sessions
         SET disconnected_at = last_seen_at,
             reason = ?
         WHERE disconnected_at IS NULL
         "#,
+        DisconnectReason::ServerShutdown as i64,
     )
-    .bind(DisconnectReason::ServerShutdown as i64)
     .execute(pool)
     .await?;
 
@@ -32,45 +220,9 @@ async fn insert_record_data(
 ) -> sqlx::Result<()> {
     metrics::counter!("db.insert", "table" => "records").increment(1);
 
-    sqlx::query(
-        r#"
-        INSERT INTO records (
-          identity_pk,
-          kind,
-          ts_ms,
-          received_ms,
-          span_id,
-          parent_id,
-          source,
-          level,
-          message,
-          fields_json
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(identity_pk)
-    .bind(body.kind.clone() as i64)
-    .bind(body.timestamp)
-    .bind(received_at)
-    .bind(
-        body.trace
-            .as_ref()
-            .and_then(|trace| trace.span)
-            .map(|v| v as i64),
-    )
-    .bind(
-        body.trace
-            .as_ref()
-            .and_then(|trace| trace.parent)
-            .map(|v| v as i64),
-    )
-    .bind(body.source.as_deref())
-    .bind(body.level.clone().map(|level| level as i64))
-    .bind(&body.message)
-    .bind(&body.fields)
-    .execute(pool)
-    .await?;
+    InsertRecordParams::from_record(identity_pk, received_at, body)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
@@ -85,7 +237,7 @@ async fn upsert_connected_session(
 ) -> sqlx::Result<()> {
     metrics::counter!("db.insert", "table" => "sessions").increment(1);
 
-    sqlx::query(
+    sqlx::query!(
         r#"
         INSERT INTO sessions (
           session_id,
@@ -101,13 +253,13 @@ async fn upsert_connected_session(
           disconnected_at = excluded.disconnected_at,
           reason = excluded.reason
         "#,
+        session_id,
+        identity_pk,
+        received_at,
+        received_at,
+        disconnected_at,
+        reason,
     )
-    .bind(session_id)
-    .bind(identity_pk)
-    .bind(received_at)
-    .bind(received_at)
-    .bind(disconnected_at)
-    .bind(reason)
     .execute(pool)
     .await?;
 
@@ -118,35 +270,10 @@ impl WithSql for Identity<Claims> {
     async fn insert(&self, pool: &Pool<Sqlite>) -> sqlx::Result<()> {
         metrics::counter!("db.insert", "table" => "identity").increment(1);
 
-        let writer_id = self.observed.to_string();
-        let pid = self
-            .assertion
-            .source
-            .as_ref()
-            .map(|source| source.pid as i64);
-        let process_name = self
-            .assertion
-            .source
-            .as_ref()
-            .map(|source| source.name.as_str());
-        let start_ms = self
-            .assertion
-            .source
-            .as_ref()
-            .map(|source| source.start as i64);
-
-        sqlx::query(
-            r#"
-                INSERT OR IGNORE INTO identity (writer_id, display_name, pid, process_name, hostname, start_ms)
-                VALUES (?, ?, ?, ?, ?, ?)
-            "#,
+        IdentityInsertParams::from_identity(
+            self.observed.to_string().as_str(),
+            self,
         )
-        .bind(writer_id.as_str())
-        .bind(self.assertion.display_name.as_deref())
-        .bind(pid)
-        .bind(process_name)
-        .bind(&self.assertion.hostname)
-        .bind(start_ms)
         .execute(pool)
         .await?;
 
@@ -160,43 +287,12 @@ impl WithSql for laminar_stream::sink::Response<Claims, Record> {
         let writer_id = self.identity.observed.to_string();
 
         metrics::counter!("db.select", "table" => "identity").increment(1);
-        let identity_pk: i64 = sqlx::query(
-            r#"
-            SELECT pk
-            FROM identity
-            WHERE writer_id = ?
-              AND pid IS ?
-              AND process_name IS ?
-              AND hostname = ?
-              AND start_ms IS ?
-            "#,
+        let identity_pk = IdentitySelectParams::from_identity(
+            writer_id.as_str(),
+            &self.identity,
         )
-        .bind(writer_id)
-        .bind(
-            self.identity
-                .assertion
-                .source
-                .as_ref()
-                .map(|source| source.pid as i64),
-        )
-        .bind(
-            self.identity
-                .assertion
-                .source
-                .as_ref()
-                .map(|source| source.name.as_str()),
-        )
-        .bind(&self.identity.assertion.hostname)
-        .bind(
-            self.identity
-                .assertion
-                .source
-                .as_ref()
-                .map(|source| source.start as i64),
-        )
-        .fetch_one(pool)
-        .await?
-        .get("pk");
+        .identity_pk(pool)
+        .await?;
 
         let (disconnected_at, reason) = match &self.event {
             ResponseEvent::Disconnect(reason) => {

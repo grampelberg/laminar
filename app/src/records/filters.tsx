@@ -1,16 +1,17 @@
-import { useAtom } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { filterLabelFor } from '@/records/schema'
 
-import { filtersAtom } from './data/filter'
+import { filtersAtom, removeFilterAtAtom } from './data/filter'
 
 export const Filters = () => {
-  const [filters, setFilters] = useAtom(filtersAtom)
+  const filters = useAtomValue(filtersAtom)
+  const removeFilter = useSetAtom(removeFilterAtAtom)
 
-  const removeFilter = (index: number) => {
-    setFilters(current => current.filter((_, itemIndex) => itemIndex !== index))
+  const onRemoveFilter = (index: number) => {
+    removeFilter(index)
   }
 
   return (
@@ -24,7 +25,7 @@ export const Filters = () => {
           <span className="max-w-40 truncate">{filterLabelFor(filter)}</span>
           <button
             className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={() => removeFilter(index)}
+            onClick={() => onRemoveFilter(index)}
             type="button"
           >
             <X className="size-3" />

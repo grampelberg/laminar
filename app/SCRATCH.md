@@ -17,8 +17,6 @@
   more. Having `Warning` as a label works for now but it is tough to know what
   it actually means. Should they be `Column: Warning`?
 
-- Move filter de-duplication logic into the atom.
-- Update tests to support the new schema
 - Make retention actually do something.
 - Register endpoints with a name.
 - Add routing for detail view.
@@ -26,6 +24,7 @@
   can't close it. Should probably move over to covering the whole page below
   that break point.
   - Below that, you can see the list but the icons are cut off.
+- Add a query view.
 
 ## Bugs
 

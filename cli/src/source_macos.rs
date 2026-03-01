@@ -58,8 +58,7 @@ fn pipe_fds(pid: i32) -> Result<impl Iterator<Item = PipeFDInfo>> {
 pub(super) fn get_sources() -> Result<Option<SourceProcess>, Error> {
     let pid = i32::try_from(std::process::id())
         .map_err(|_| Error::NoSource("pid out of range for i32".to_string()))?;
-    let reader =
-        pidfdinfo::<PipeFDInfo>(pid, 0).map_err(Error::NoSource)?;
+    let reader = pidfdinfo::<PipeFDInfo>(pid, 0).map_err(Error::NoSource)?;
 
     let all_pids = pids_by_type(ProcFilter::All)
         .map_err(|e| Error::NoSource(e.to_string()))?;

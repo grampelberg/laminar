@@ -111,7 +111,7 @@ describe('RecordsTable', () => {
 
     const val = simpleFaker.number.int()
 
-    store.set(filtersAtom, [{ column: 'level', value: val }])
+    store.set(filtersAtom, { column: 'level', value: val })
 
     await expect
       .poll(() => screen.container.querySelector('tbody'))

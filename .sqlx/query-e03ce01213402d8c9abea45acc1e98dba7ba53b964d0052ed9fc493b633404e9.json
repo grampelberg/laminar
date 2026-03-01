@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT pk\n            FROM identity\n            WHERE writer_id = ?\n              AND pid IS ?\n              AND process_name IS ?\n              AND hostname = ?\n              AND start_ms IS ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "pk",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e03ce01213402d8c9abea45acc1e98dba7ba53b964d0052ed9fc493b633404e9"
+}
