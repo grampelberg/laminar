@@ -18,12 +18,14 @@
   it actually means. Should they be `Column: Warning`?
 
 - Move filter de-duplication logic into the atom.
-- Markers
-  - Add tests
 - Update tests to support the new schema
 - Make retention actually do something.
 - Register endpoints with a name.
 - Add routing for detail view.
+- UI isn't working at ~700px width right now. The sidebar is too narrow and you
+  can't close it. Should probably move over to covering the whole page below
+  that break point.
+  - Below that, you can see the list but the icons are cut off.
 
 ## Bugs
 

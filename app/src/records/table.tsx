@@ -107,7 +107,13 @@ export const RecordsTable = () => {
   }
 
   return (
-    <div ref={viewportRef} className="absolute inset-0 -left-4 overflow-scroll">
+    <div
+      ref={viewportRef}
+      role="region"
+      aria-label="Records viewport"
+      data-slot="scroll-area-viewport"
+      className="absolute inset-0 -left-4 overflow-scroll"
+    >
       <div className="ml-4">
         <div className="sticky top-0 z-50 h-0 -translate-x-4">
           <div className="h-10 w-4 bg-background" />

@@ -5,6 +5,9 @@ check:
     bun lint
     bun tsc --noEmit
 
+test:
+    bun vitest
+
 db-tooling: tmp
     cargo sqlx database create
     cargo sqlx migrate run --source src-tauri/migrations

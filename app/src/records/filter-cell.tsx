@@ -1,6 +1,5 @@
-import { Slot } from '@radix-ui/react-slot'
 import { useSetAtom } from 'jotai'
-import type { ComponentProps, MouseEvent, ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -22,11 +21,18 @@ export const FilterCell = ({
     setFilters(current => [...current.filter(i => !matchesFilter(i)), filter])
   }
 
-  const slotProps: ComponentProps<typeof Slot> = {
-    className: cn('cursor-pointer'),
-    onClick: addFilter,
-    title: `Filter by ${String(filter.column)}`,
-  }
+  const valueLabel =
+    filter.value === undefined ? 'empty' : String(filter.value)
 
-  return <Slot {...slotProps}>{children}</Slot>
+  return (
+    <button
+      type="button"
+      className={cn('contents cursor-pointer')}
+      onClick={addFilter}
+      title={`Filter by ${String(filter.column)}: ${valueLabel}`}
+      aria-label={`Filter by ${String(filter.column)}: ${valueLabel}`}
+    >
+      {children}
+    </button>
+  )
 }
