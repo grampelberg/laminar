@@ -8,6 +8,7 @@ async fn connect(db_path: &PathBuf) -> Result<Pool<Sqlite>> {
         .filename(db_path)
         .create_if_missing(true);
     let pool = Pool::connect_with(options).await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
     Ok(pool)
 }
 
